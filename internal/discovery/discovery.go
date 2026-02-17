@@ -75,7 +75,10 @@ func Discover(pluginsFile string) ([]Skill, error) {
 				continue
 			}
 
-			fm, body := parseFrontmatter(content)
+			fm, body, err := parseFrontmatter(content)
+			if err != nil {
+				continue
+			}
 
 			name := fm.Name
 			if name == "" {
@@ -95,24 +98,26 @@ func Discover(pluginsFile string) ([]Skill, error) {
 	return skills, nil
 }
 
-func parseFrontmatter(content []byte) (frontmatter, string) {
+func parseFrontmatter(content []byte) (frontmatter, string, error) {
 	var fm frontmatter
 
 	trimmed := bytes.TrimSpace(content)
 	if !bytes.HasPrefix(trimmed, []byte("---")) {
-		return fm, string(content)
+		return fm, string(content), nil
 	}
 
 	rest := trimmed[3:]
 	idx := bytes.Index(rest, []byte("\n---"))
 	if idx == -1 {
-		return fm, string(content)
+		return fm, string(content), nil
 	}
 
 	yamlBlock := rest[:idx]
 	body := rest[idx+4:]
 
-	_ = yaml.Unmarshal(yamlBlock, &fm)
+	if err := yaml.Unmarshal(yamlBlock, &fm); err != nil {
+		return fm, string(content), err
+	}
 
-	return fm, string(bytes.TrimSpace(body))
+	return fm, string(bytes.TrimSpace(body)), nil
 }

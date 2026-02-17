@@ -3,6 +3,7 @@ package discovery
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -16,7 +17,7 @@ func TestLoadPlugins(t *testing.T) {
     "superpowers@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "PLACEHOLDER",
+        "installPath": "__PLUGIN_DIR__",
         "version": "4.2.0",
         "installedAt": "2026-02-09T08:43:14.746Z",
         "lastUpdated": "2026-02-09T08:43:14.746Z",
@@ -26,7 +27,7 @@ func TestLoadPlugins(t *testing.T) {
     "no-skills@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "PLACEHOLDER_NOSKILLS",
+        "installPath": "__NOSKILLS_DIR__",
         "version": "1.0.0",
         "installedAt": "2026-01-28T22:52:44.362Z",
         "lastUpdated": "2026-01-28T22:52:44.362Z",
@@ -63,8 +64,8 @@ Some content here.
 	}
 
 	// Patch the JSON with real paths
-	pluginsJSON = replaceAll(pluginsJSON, "PLACEHOLDER_NOSKILLS", noSkillsDir)
-	pluginsJSON = replaceAll(pluginsJSON, "PLACEHOLDER", pluginDir)
+	pluginsJSON = strings.ReplaceAll(pluginsJSON, "__PLUGIN_DIR__", pluginDir)
+	pluginsJSON = strings.ReplaceAll(pluginsJSON, "__NOSKILLS_DIR__", noSkillsDir)
 
 	pluginsFile := filepath.Join(tmpDir, "installed_plugins.json")
 	if err := os.WriteFile(pluginsFile, []byte(pluginsJSON), 0o644); err != nil {
@@ -91,18 +92,11 @@ Some content here.
 	if s.Plugin != "superpowers" {
 		t.Errorf("expected plugin 'superpowers', got %q", s.Plugin)
 	}
-}
-
-func replaceAll(s, old, new string) string {
-	result := ""
-	for i := 0; i < len(s); {
-		if i+len(old) <= len(s) && s[i:i+len(old)] == old {
-			result += new
-			i += len(old)
-		} else {
-			result += string(s[i])
-			i++
-		}
+	expectedPath := filepath.Join(skillDir, "SKILL.md")
+	if s.FilePath != expectedPath {
+		t.Errorf("expected FilePath %q, got %q", expectedPath, s.FilePath)
 	}
-	return result
+	if s.Content != "# Brainstorming\n\nSome content here." {
+		t.Errorf("unexpected Content: %q", s.Content)
+	}
 }
