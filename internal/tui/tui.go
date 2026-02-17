@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -12,13 +13,10 @@ import (
 )
 
 var (
-	listStyle = lipgloss.NewStyle().
-			Padding(1, 2)
-
-	viewportStyle = lipgloss.NewStyle().
-			Padding(1, 2).
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderLeft(true)
+	panelStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderTop(false).
+			Padding(0, 1)
 
 	focusedBorderColor = lipgloss.Color("62")
 	blurredBorderColor = lipgloss.Color("240")
@@ -32,11 +30,6 @@ var (
 			Foreground(lipgloss.Color("252")).
 			Background(lipgloss.Color("236")).
 			Bold(true)
-
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("62")).
-			Padding(0, 1)
 )
 
 // skillItem implements list.Item for a Skill.
@@ -117,17 +110,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		contentHeight := msg.Height - 1 // reserve 1 row for help bar
 		listWidth := msg.Width / 3
-		viewportWidth := msg.Width - listWidth - 4
+		viewportWidth := msg.Width - listWidth
 
-		m.list.SetSize(listWidth, contentHeight)
+		// Each panel has: 1 top border + 1 bottom border + left/right border chars + padding
+		// Inner content height = contentHeight - 3 (top border + bottom border + slack)
+		listInnerWidth := listWidth - 4  // border (2) + padding (2)
+		vpInnerWidth := viewportWidth - 4
+		innerHeight := contentHeight - 3
+
+		m.list.SetSize(listInnerWidth, innerHeight)
 
 		if !m.ready {
-			m.viewport = viewport.New(viewportWidth, contentHeight-4)
+			m.viewport = viewport.New(vpInnerWidth, innerHeight)
 			m.ready = true
 			m = m.updateViewportContent()
 		} else {
-			m.viewport.Width = viewportWidth
-			m.viewport.Height = contentHeight - 4
+			m.viewport.Width = vpInnerWidth
+			m.viewport.Height = innerHeight
 		}
 	}
 
@@ -197,6 +196,44 @@ func (m Model) updateViewportContent() Model {
 	return m
 }
 
+// renderPanel draws a bordered panel with the title embedded in the top border line.
+func renderPanel(title string, content string, width, height int, borderColor lipgloss.Color) string {
+	border := lipgloss.RoundedBorder()
+
+	// Render the body with panelStyle (no top border).
+	body := panelStyle.
+		BorderForeground(borderColor).
+		Width(width).
+		Height(height).
+		Render(content)
+
+	// The rendered body width includes: left border (1) + left padding (1) + content (width) + right padding (1) + right border (1).
+	totalWidth := lipgloss.Width(body)
+
+	// Build the top border line with the title embedded.
+	titleStyled := lipgloss.NewStyle().Bold(true).Foreground(borderColor).Render(title)
+	titleVisualWidth := lipgloss.Width(titleStyled)
+
+	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
+
+	// Top line: ╭─ Title ─────...─╮
+	// prefix = "╭─ " (3 chars visible), suffix = " ─╮" would be too much, let's do:
+	// prefix: ╭─  (2 visible) + title + space (1) + fill dashes + ╮ (1)
+	prefix := borderStyle.Render(border.TopLeft + border.Top + " ")
+	suffix := borderStyle.Render(border.TopRight)
+
+	// Visible width used: 3 (╭─ ) + titleVisualWidth + 1 (space after title) + 1 (╮) = titleVisualWidth + 5
+	fillCount := totalWidth - titleVisualWidth - 5
+	if fillCount < 0 {
+		fillCount = 0
+	}
+	fill := borderStyle.Render(strings.Repeat(border.Top, fillCount) + " ")
+
+	topLine := prefix + titleStyled + fill + suffix
+
+	return lipgloss.JoinVertical(lipgloss.Left, topLine, body)
+}
+
 func (m Model) helpBar() string {
 	key := helpKeyStyle.Render
 	bar := helpBarStyle.Render
@@ -221,24 +258,23 @@ func (m Model) View() string {
 	listWidth := m.width / 3
 	viewportWidth := m.width - listWidth
 
-	borderColor := blurredBorderColor
+	// Panel inner height: total content area minus top border (1) + bottom border (1) + top/bottom padding from border
+	panelHeight := contentHeight - 3
+
+	// Border colors: focused pane gets accent, other is dim
+	listBorderColor := focusedBorderColor
+	vpBorderColor := blurredBorderColor
 	if m.focusViewport {
-		borderColor = focusedBorderColor
+		listBorderColor = blurredBorderColor
+		vpBorderColor = focusedBorderColor
 	}
 
-	// Left pane: header + list
-	listHeader := headerStyle.Width(listWidth).Render("Skills")
-	listView := listStyle.Width(listWidth).Height(contentHeight - 1).Render(m.list.View())
-	leftPane := lipgloss.JoinVertical(lipgloss.Left, listHeader, listView)
+	// Left pane: Skills list in bordered panel
+	// panelStyle adds border (1+1) + padding (1+1) = 4 to width, so inner width = listWidth - 4
+	leftPane := renderPanel("Skills", m.list.View(), listWidth-4, panelHeight, listBorderColor)
 
-	// Right pane: header + viewport
-	vpHeader := headerStyle.Render("SKILL.md")
-	vpView := viewportStyle.
-		BorderForeground(borderColor).
-		Width(viewportWidth - 4).
-		Height(contentHeight - 3).
-		Render(m.viewport.View())
-	rightPane := lipgloss.JoinVertical(lipgloss.Left, vpHeader, vpView)
+	// Right pane: Viewport in bordered panel
+	rightPane := renderPanel("SKILL.md", m.viewport.View(), viewportWidth-4, panelHeight, vpBorderColor)
 
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
 
