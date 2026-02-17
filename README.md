@@ -6,7 +6,7 @@ A TUI for browsing and reading your installed [Claude Code](https://docs.anthrop
 
 ## Features
 
-- Discovers all installed skills from Claude Code plugins
+- Discovers all installed skills from Claude Code plugins as well as local skills
 - Split-pane layout with filterable skill list and rendered markdown preview
 - Vim-style `hjkl` navigation
 
