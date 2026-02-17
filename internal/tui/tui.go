@@ -22,6 +22,16 @@ var (
 
 	focusedBorderColor = lipgloss.Color("62")
 	blurredBorderColor = lipgloss.Color("240")
+
+	helpBarStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("243")).
+			Background(lipgloss.Color("236")).
+			Padding(0, 1)
+
+	helpKeyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("252")).
+			Background(lipgloss.Color("236")).
+			Bold(true)
 )
 
 // skillItem implements list.Item for a Skill.
@@ -105,18 +115,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
+		contentHeight := msg.Height - 1 // reserve 1 row for help bar
 		listWidth := msg.Width / 3
 		viewportWidth := msg.Width - listWidth - 4
 
-		m.list.SetSize(listWidth, msg.Height)
+		m.list.SetSize(listWidth, contentHeight)
 
 		if !m.ready {
-			m.viewport = viewport.New(viewportWidth, msg.Height-4)
+			m.viewport = viewport.New(viewportWidth, contentHeight-4)
 			m.ready = true
 			m = m.updateViewportContent()
 		} else {
 			m.viewport.Width = viewportWidth
-			m.viewport.Height = msg.Height - 4
+			m.viewport.Height = contentHeight - 4
 		}
 	}
 
@@ -186,11 +197,27 @@ func (m Model) updateViewportContent() Model {
 	return m
 }
 
+func (m Model) helpBar() string {
+	key := helpKeyStyle.Render
+	bar := helpBarStyle.Render
+
+	var help string
+	if m.focusViewport {
+		help = bar(key("j/k")+" scroll  "+key("h/esc")+" back to list  "+key("/")+" filter  "+key("q")+" quit")
+	} else {
+		help = bar(key("j/k")+" navigate  "+key("tab/l")+" read preview  "+key("/")+" filter  "+key("q")+" quit")
+	}
+
+	// Pad to full width.
+	return helpBarStyle.Width(m.width).Render(help)
+}
+
 func (m Model) View() string {
 	if !m.ready {
 		return "Loading..."
 	}
 
+	contentHeight := m.height - 1
 	listWidth := m.width / 3
 	viewportWidth := m.width - listWidth
 
@@ -199,12 +226,14 @@ func (m Model) View() string {
 		borderColor = focusedBorderColor
 	}
 
-	listView := listStyle.Width(listWidth).Height(m.height).Render(m.list.View())
+	listView := listStyle.Width(listWidth).Height(contentHeight).Render(m.list.View())
 	vpView := viewportStyle.
 		BorderForeground(borderColor).
 		Width(viewportWidth - 4).
-		Height(m.height - 2).
+		Height(contentHeight - 2).
 		Render(m.viewport.View())
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, listView, vpView)
+	panes := lipgloss.JoinHorizontal(lipgloss.Top, listView, vpView)
+
+	return lipgloss.JoinVertical(lipgloss.Left, panes, m.helpBar())
 }
