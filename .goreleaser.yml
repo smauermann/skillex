@@ -16,11 +16,14 @@ archives:
   - formats:
       - tar.gz
 
-homebrew_casks:
+brews:
   - repository:
       owner: smauermann
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Casks
+    directory: Formula
     homepage: https://github.com/smauermann/skillex
     description: TUI for browsing and reading installed Claude Code skills
+    license: MIT
+    test: |
+      assert_match "Error discovering skills", shell_output("#{bin}/skillex 2>&1", 1)
