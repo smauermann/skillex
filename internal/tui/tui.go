@@ -94,17 +94,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
-		case "tab", "l":
+		case "l":
 			if !m.focusViewport {
 				m.focusViewport = true
 				return m, nil
 			}
 		case "h":
-			if m.focusViewport {
-				m.focusViewport = false
-				return m, nil
-			}
-		case "esc":
 			if m.focusViewport {
 				m.focusViewport = false
 				return m, nil
@@ -203,9 +198,9 @@ func (m Model) helpBar() string {
 
 	var help string
 	if m.focusViewport {
-		help = bar(key("j/k")+" scroll  "+key("h/esc")+" back to list  "+key("/")+" filter  "+key("q")+" quit")
+		help = bar(key("j/k")+" scroll  "+key("h")+" back to list  "+key("/")+" filter  "+key("q")+" quit")
 	} else {
-		help = bar(key("j/k")+" navigate  "+key("tab/l")+" read preview  "+key("/")+" filter  "+key("q")+" quit")
+		help = bar(key("j/k")+" navigate  "+key("l")+" read preview  "+key("/")+" filter  "+key("q")+" quit")
 	}
 
 	// Pad to full width.
