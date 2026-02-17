@@ -70,7 +70,7 @@ func New(skills []discovery.Skill, styleOpt glamour.TermRendererOption) Model {
 	}
 
 	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
-	l.Title = "Skills"
+	l.SetShowTitle(false)
 	l.SetShowHelp(false)
 	l.SetShowStatusBar(false)
 
@@ -217,7 +217,7 @@ func (m Model) View() string {
 		return "Loading..."
 	}
 
-	contentHeight := m.height - 1
+	contentHeight := m.height - 1 // reserve for help bar
 	listWidth := m.width / 3
 	viewportWidth := m.width - listWidth
 
@@ -226,8 +226,12 @@ func (m Model) View() string {
 		borderColor = focusedBorderColor
 	}
 
-	listView := listStyle.Width(listWidth).Height(contentHeight).Render(m.list.View())
+	// Left pane: header + list
+	listHeader := headerStyle.Width(listWidth).Render("Skills")
+	listView := listStyle.Width(listWidth).Height(contentHeight - 1).Render(m.list.View())
+	leftPane := lipgloss.JoinVertical(lipgloss.Left, listHeader, listView)
 
+	// Right pane: header + viewport
 	vpHeader := headerStyle.Render("SKILL.md")
 	vpView := viewportStyle.
 		BorderForeground(borderColor).
@@ -236,7 +240,7 @@ func (m Model) View() string {
 		Render(m.viewport.View())
 	rightPane := lipgloss.JoinVertical(lipgloss.Left, vpHeader, vpView)
 
-	panes := lipgloss.JoinHorizontal(lipgloss.Top, listView, rightPane)
+	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
 
 	return lipgloss.JoinVertical(lipgloss.Left, panes, m.helpBar())
 }
