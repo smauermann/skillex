@@ -35,8 +35,55 @@ type frontmatter struct {
 	Description string `yaml:"description"`
 }
 
+// discoverSkillsInDir walks subdirectories of dir, reads SKILL.md files,
+// and returns discovered skills. Returns nil if dir doesn't exist.
+func discoverSkillsInDir(dir string, pluginName string) []Skill {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+
+	var skills []Skill
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		skillFile := filepath.Join(dir, entry.Name(), "SKILL.md")
+		content, err := os.ReadFile(skillFile)
+		if err != nil {
+			continue
+		}
+
+		fm, body, err := parseFrontmatter(content)
+		if err != nil {
+			continue
+		}
+
+		name := fm.Name
+		if name == "" {
+			name = entry.Name()
+		}
+
+		skills = append(skills, Skill{
+			Name:        name,
+			Description: fm.Description,
+			Plugin:      pluginName,
+			FilePath:    skillFile,
+			Content:     body,
+		})
+	}
+	return skills
+}
+
+// LocalSkillsDir pairs a .claude/skills path with a display name.
+type LocalSkillsDir struct {
+	Path string
+	Name string
+}
+
 // Discover reads installed_plugins.json and finds all skills.
-func Discover(pluginsFile string) ([]Skill, error) {
+// Skills from localDirs are also included, each labeled with its Name.
+func Discover(pluginsFile string, localDirs []LocalSkillsDir) ([]Skill, error) {
 	data, err := os.ReadFile(pluginsFile)
 	if err != nil {
 		return nil, fmt.Errorf("reading plugins file: %w", err)
@@ -59,40 +106,11 @@ func Discover(pluginsFile string) ([]Skill, error) {
 			pluginName = key[:idx]
 		}
 
-		skillsDir := filepath.Join(inst.InstallPath, "skills")
-		entries, err := os.ReadDir(skillsDir)
-		if err != nil {
-			continue
-		}
+		skills = append(skills, discoverSkillsInDir(filepath.Join(inst.InstallPath, "skills"), pluginName)...)
+	}
 
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			skillFile := filepath.Join(skillsDir, entry.Name(), "SKILL.md")
-			content, err := os.ReadFile(skillFile)
-			if err != nil {
-				continue
-			}
-
-			fm, body, err := parseFrontmatter(content)
-			if err != nil {
-				continue
-			}
-
-			name := fm.Name
-			if name == "" {
-				name = entry.Name()
-			}
-
-			skills = append(skills, Skill{
-				Name:        name,
-				Description: fm.Description,
-				Plugin:      pluginName,
-				FilePath:    skillFile,
-				Content:     body,
-			})
-		}
+	for _, d := range localDirs {
+		skills = append(skills, discoverSkillsInDir(d.Path, d.Name)...)
 	}
 
 	return skills, nil

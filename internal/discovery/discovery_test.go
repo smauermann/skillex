@@ -72,8 +72,8 @@ Some content here.
 		t.Fatal(err)
 	}
 
-	// Run discovery
-	skills, err := Discover(pluginsFile)
+	// Run discovery (no local dirs)
+	skills, err := Discover(pluginsFile, nil)
 	if err != nil {
 		t.Fatalf("Discover() error: %v", err)
 	}
@@ -98,5 +98,86 @@ Some content here.
 	}
 	if s.Content != "# Brainstorming\n\nSome content here." {
 		t.Errorf("unexpected Content: %q", s.Content)
+	}
+}
+
+func TestDiscoverLocalSkills(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a minimal plugins file (no plugins)
+	pluginsJSON := `{"version": 2, "plugins": {}}`
+	pluginsFile := filepath.Join(tmpDir, "installed_plugins.json")
+	if err := os.WriteFile(pluginsFile, []byte(pluginsJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Mirror real layout: <tmpDir>/.claude/skills
+	localSkillsDir := filepath.Join(tmpDir, ".claude", "skills")
+
+	mySkillDir := filepath.Join(localSkillsDir, "my-skill")
+	if err := os.MkdirAll(mySkillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mySkillDir, "SKILL.md"), []byte(`---
+name: my-skill
+description: "A personal skill."
+---
+
+Personal skill content.
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	anotherDir := filepath.Join(localSkillsDir, "another")
+	if err := os.MkdirAll(anotherDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(anotherDir, "SKILL.md"), []byte(`---
+name: another
+description: "Another local skill."
+---
+
+Another content.
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skills, err := Discover(pluginsFile, []LocalSkillsDir{
+		{Path: localSkillsDir, Name: "my-project"},
+	})
+	if err != nil {
+		t.Fatalf("Discover() error: %v", err)
+	}
+
+	if len(skills) != 2 {
+		t.Fatalf("expected 2 skills, got %d", len(skills))
+	}
+
+	for _, s := range skills {
+		if s.Plugin != "my-project" {
+			t.Errorf("expected Plugin %q, got %q for skill %q", "my-project", s.Plugin, s.Name)
+		}
+	}
+}
+
+func TestDiscoverLocalSkills_NonexistentDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pluginsJSON := `{"version": 2, "plugins": {}}`
+	pluginsFile := filepath.Join(tmpDir, "installed_plugins.json")
+	if err := os.WriteFile(pluginsFile, []byte(pluginsJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pass a nonexistent directory — should not error
+	skills, err := Discover(pluginsFile, []LocalSkillsDir{
+		{Path: filepath.Join(tmpDir, "nonexistent"), Name: "gone"},
+	})
+	if err != nil {
+		t.Fatalf("Discover() error: %v", err)
+	}
+
+	if len(skills) != 0 {
+		t.Fatalf("expected 0 skills, got %d", len(skills))
 	}
 }

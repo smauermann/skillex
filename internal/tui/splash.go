@@ -40,6 +40,7 @@ type skillsLoadedMsg struct {
 // SplashModel shows a splash screen until the user presses Enter.
 type SplashModel struct {
 	pluginsFile  string
+	localDirs    []discovery.LocalSkillsDir
 	styleOpt     glamour.TermRendererOption
 	width        int
 	height       int
@@ -49,9 +50,10 @@ type SplashModel struct {
 }
 
 // NewSplash creates the splash screen model.
-func NewSplash(pluginsFile string, styleOpt glamour.TermRendererOption) SplashModel {
+func NewSplash(pluginsFile string, localDirs []discovery.LocalSkillsDir, styleOpt glamour.TermRendererOption) SplashModel {
 	return SplashModel{
 		pluginsFile: pluginsFile,
+		localDirs:   localDirs,
 		styleOpt:    styleOpt,
 	}
 }
@@ -62,7 +64,7 @@ func (m SplashModel) Init() tea.Cmd {
 
 func (m SplashModel) discoverSkills() tea.Cmd {
 	return func() tea.Msg {
-		skills, err := discovery.Discover(m.pluginsFile)
+		skills, err := discovery.Discover(m.pluginsFile, m.localDirs)
 		return skillsLoadedMsg{skills: skills, err: err}
 	}
 }
