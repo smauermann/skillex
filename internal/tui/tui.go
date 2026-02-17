@@ -32,6 +32,11 @@ var (
 			Foreground(lipgloss.Color("252")).
 			Background(lipgloss.Color("236")).
 			Bold(true)
+
+	headerStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("62")).
+			Padding(0, 1)
 )
 
 // skillItem implements list.Item for a Skill.
@@ -222,13 +227,16 @@ func (m Model) View() string {
 	}
 
 	listView := listStyle.Width(listWidth).Height(contentHeight).Render(m.list.View())
+
+	vpHeader := headerStyle.Render("SKILL.md")
 	vpView := viewportStyle.
 		BorderForeground(borderColor).
 		Width(viewportWidth - 4).
-		Height(contentHeight - 2).
+		Height(contentHeight - 3).
 		Render(m.viewport.View())
+	rightPane := lipgloss.JoinVertical(lipgloss.Left, vpHeader, vpView)
 
-	panes := lipgloss.JoinHorizontal(lipgloss.Top, listView, vpView)
+	panes := lipgloss.JoinHorizontal(lipgloss.Top, listView, rightPane)
 
 	return lipgloss.JoinVertical(lipgloss.Left, panes, m.helpBar())
 }
