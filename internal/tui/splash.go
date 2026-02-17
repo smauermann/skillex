@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,6 +10,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/smauermann/skillex/internal/discovery"
 )
+
+const splashMinDuration = 1500 * time.Millisecond
+
+// splashTimerDoneMsg is sent when the minimum splash duration has elapsed.
+type splashTimerDoneMsg struct{}
 
 const logo = `
      _____ __ __ _____ __    __    _____ __ __
@@ -38,14 +44,15 @@ type skillsLoadedMsg struct {
 
 // SplashModel shows a splash screen while loading skills.
 type SplashModel struct {
-	spinner     spinner.Model
-	pluginsFile string
-	styleOpt    glamour.TermRendererOption
-	width       int
-	height      int
-	done        bool
-	skills      []discovery.Skill
-	err         error
+	spinner      spinner.Model
+	pluginsFile  string
+	styleOpt     glamour.TermRendererOption
+	width        int
+	height       int
+	err          error
+	skills       []discovery.Skill
+	skillsLoaded bool
+	timerDone    bool
 }
 
 // NewSplash creates the splash screen model.
@@ -64,6 +71,9 @@ func (m SplashModel) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick,
 		m.discoverSkills(),
+		tea.Tick(splashMinDuration, func(time.Time) tea.Msg {
+			return splashTimerDoneMsg{}
+		}),
 	)
 }
 
@@ -88,18 +98,15 @@ func (m SplashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case skillsLoadedMsg:
 		if msg.err != nil {
 			m.err = msg.err
-			m.done = true
 			return m, nil
 		}
-		if len(msg.skills) == 0 {
-			m.err = fmt.Errorf("no skills found")
-			m.done = true
-			return m, nil
-		}
-		// Transition to main TUI.
-		mainModel := New(msg.skills, m.styleOpt)
-		// Send a WindowSizeMsg so the main model initializes with the right size.
-		return mainModel.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height})
+		m.skills = msg.skills
+		m.skillsLoaded = true
+		return m.tryTransition()
+
+	case splashTimerDoneMsg:
+		m.timerDone = true
+		return m.tryTransition()
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -110,8 +117,20 @@ func (m SplashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m SplashModel) tryTransition() (tea.Model, tea.Cmd) {
+	if !m.skillsLoaded || !m.timerDone {
+		return m, nil
+	}
+	if len(m.skills) == 0 {
+		m.err = fmt.Errorf("no skills found")
+		return m, nil
+	}
+	mainModel := New(m.skills, m.styleOpt)
+	return mainModel.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height})
+}
+
 func (m SplashModel) View() string {
-	if m.done && m.err != nil {
+	if m.err != nil {
 		return fmt.Sprintf("\n  Error: %v\n\n  Press q to quit.\n", m.err)
 	}
 
