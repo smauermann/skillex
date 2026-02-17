@@ -6,7 +6,7 @@ Set Width 1200
 Set Height 600
 Set Theme "Catppuccin Mocha"
 
-Type "./skillex"
+Type "skillex"
 Enter
 Sleep 1.5s
 
