@@ -18,8 +18,10 @@ var (
 	viewportStyle = lipgloss.NewStyle().
 			Padding(1, 2).
 			BorderStyle(lipgloss.RoundedBorder()).
-			BorderLeft(true).
-			BorderForeground(lipgloss.Color("62"))
+			BorderLeft(true)
+
+	focusedBorderColor = lipgloss.Color("62")
+	blurredBorderColor = lipgloss.Color("240")
 )
 
 // skillItem implements list.Item for a Skill.
@@ -42,6 +44,7 @@ type Model struct {
 	width         int
 	height        int
 	ready         bool
+	focusViewport bool
 }
 
 // New creates a new TUI model from discovered skills.
@@ -74,11 +77,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		// Don't intercept keys when filtering
 		if m.list.FilterState() == list.Filtering {
-			break
+			var cmd tea.Cmd
+			m.list, cmd = m.list.Update(msg)
+			return m, cmd
 		}
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		case "tab", "l":
+			if !m.focusViewport {
+				m.focusViewport = true
+				return m, nil
+			}
+		case "h":
+			if m.focusViewport {
+				m.focusViewport = false
+				return m, nil
+			}
+		case "esc":
+			if m.focusViewport {
+				m.focusViewport = false
+				return m, nil
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -86,7 +106,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 		listWidth := msg.Width / 3
-		viewportWidth := msg.Width - listWidth - 4 // account for border + padding
+		viewportWidth := msg.Width - listWidth - 4
 
 		m.list.SetSize(listWidth, msg.Height)
 
@@ -100,20 +120,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Track selection before update
-	prevIndex := m.list.Index()
+	// Route key events to the focused pane only.
+	if m.focusViewport {
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		cmds = append(cmds, cmd)
+	} else {
+		prevIndex := m.list.Index()
 
-	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
-	cmds = append(cmds, cmd)
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		cmds = append(cmds, cmd)
 
-	// Update viewport content if selection changed
-	if m.list.Index() != prevIndex {
-		m = m.updateViewportContent()
+		if m.list.Index() != prevIndex {
+			m = m.updateViewportContent()
+		}
 	}
 
-	m.viewport, cmd = m.viewport.Update(msg)
-	cmds = append(cmds, cmd)
+	// Always forward non-key messages (like WindowSizeMsg) to both.
+	if _, ok := msg.(tea.KeyMsg); !ok {
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		cmds = append(cmds, cmd)
+		m.viewport, cmd = m.viewport.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
 	return m, tea.Batch(cmds...)
 }
@@ -163,8 +194,17 @@ func (m Model) View() string {
 	listWidth := m.width / 3
 	viewportWidth := m.width - listWidth
 
+	borderColor := blurredBorderColor
+	if m.focusViewport {
+		borderColor = focusedBorderColor
+	}
+
 	listView := listStyle.Width(listWidth).Height(m.height).Render(m.list.View())
-	vpView := viewportStyle.Width(viewportWidth - 4).Height(m.height - 2).Render(m.viewport.View())
+	vpView := viewportStyle.
+		BorderForeground(borderColor).
+		Width(viewportWidth - 4).
+		Height(m.height - 2).
+		Render(m.viewport.View())
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, listView, vpView)
 }
