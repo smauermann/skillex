@@ -112,20 +112,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		listWidth := msg.Width / 3
 		viewportWidth := msg.Width - listWidth
 
-		// Each panel has: 1 top border + 1 bottom border + left/right border chars + padding
-		// Inner content height = contentHeight - 3 (top border + bottom border + slack)
-		listInnerWidth := listWidth - 4  // border (2) + padding (2)
-		vpInnerWidth := viewportWidth - 4
-		innerHeight := contentHeight - 3
+		// Content width = total panel width - borders(2) - padding(2)
+		listContentWidth := listWidth - 4
+		vpContentWidth := viewportWidth - 4
+		// Content height = total - top border(1) - bottom border(1)
+		innerHeight := contentHeight - 2
 
-		m.list.SetSize(listInnerWidth, innerHeight)
+		m.list.SetSize(listContentWidth, innerHeight)
 
 		if !m.ready {
-			m.viewport = viewport.New(vpInnerWidth, innerHeight)
+			m.viewport = viewport.New(vpContentWidth, innerHeight)
 			m.ready = true
 			m = m.updateViewportContent()
 		} else {
-			m.viewport.Width = vpInnerWidth
+			m.viewport.Width = vpContentWidth
 			m.viewport.Height = innerHeight
 		}
 	}
@@ -197,39 +197,33 @@ func (m Model) updateViewportContent() Model {
 }
 
 // renderPanel draws a bordered panel with the title embedded in the top border line.
-func renderPanel(title string, content string, width, height int, borderColor lipgloss.Color) string {
+// totalWidth is the full desired width of the panel including borders.
+func renderPanel(title string, content string, totalWidth, height int, borderColor lipgloss.Color) string {
 	border := lipgloss.RoundedBorder()
 
-	// Render the body with panelStyle (no top border).
+	// lipgloss .Width() includes padding but excludes borders.
+	bodyWidth := totalWidth - 2
 	body := panelStyle.
 		BorderForeground(borderColor).
-		Width(width).
+		Width(bodyWidth).
 		Height(height).
 		Render(content)
 
-	// The rendered body width includes: left border (1) + left padding (1) + content (width) + right padding (1) + right border (1).
-	totalWidth := lipgloss.Width(body)
-
-	// Build the top border line with the title embedded.
+	// Build the top border line to match body width exactly.
 	titleStyled := lipgloss.NewStyle().Bold(true).Foreground(borderColor).Render(title)
-	titleVisualWidth := lipgloss.Width(titleStyled)
+	titleWidth := lipgloss.Width(titleStyled)
+	colorStyle := lipgloss.NewStyle().Foreground(borderColor)
 
-	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
-
-	// Top line: ╭─ Title ─────...─╮
-	// prefix = "╭─ " (3 chars visible), suffix = " ─╮" would be too much, let's do:
-	// prefix: ╭─  (2 visible) + title + space (1) + fill dashes + ╮ (1)
-	prefix := borderStyle.Render(border.TopLeft + border.Top + " ")
-	suffix := borderStyle.Render(border.TopRight)
-
-	// Visible width used: 3 (╭─ ) + titleVisualWidth + 1 (space after title) + 1 (╮) = titleVisualWidth + 5
-	fillCount := totalWidth - titleVisualWidth - 5
+	// Layout: ╭─ Title ─────...──╮
+	// Chars: ╭(1) ─(1) space(1) title(N) space(1) fill(F) ╮(1) = totalWidth
+	fillCount := totalWidth - titleWidth - 5
 	if fillCount < 0 {
 		fillCount = 0
 	}
-	fill := borderStyle.Render(strings.Repeat(border.Top, fillCount) + " ")
 
-	topLine := prefix + titleStyled + fill + suffix
+	topLine := colorStyle.Render(border.TopLeft+border.Top+" ") +
+		titleStyled +
+		colorStyle.Render(" "+strings.Repeat(border.Top, fillCount)+border.TopRight)
 
 	return lipgloss.JoinVertical(lipgloss.Left, topLine, body)
 }
@@ -269,12 +263,11 @@ func (m Model) View() string {
 		vpBorderColor = focusedBorderColor
 	}
 
-	// Left pane: Skills list in bordered panel
-	// panelStyle adds border (1+1) + padding (1+1) = 4 to width, so inner width = listWidth - 4
-	leftPane := renderPanel("Skills", m.list.View(), listWidth-4, panelHeight, listBorderColor)
+	// Left pane: Skills list in bordered panel (pass total panel width)
+	leftPane := renderPanel("Skills", m.list.View(), listWidth, panelHeight, listBorderColor)
 
 	// Right pane: Viewport in bordered panel
-	rightPane := renderPanel("SKILL.md", m.viewport.View(), viewportWidth-4, panelHeight, vpBorderColor)
+	rightPane := renderPanel("SKILL.md", m.viewport.View(), viewportWidth, panelHeight, vpBorderColor)
 
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
 
