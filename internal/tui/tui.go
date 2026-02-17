@@ -33,16 +33,19 @@ func (i skillItem) FilterValue() string { return i.skill.Name + " " + i.skill.Pl
 
 // Model is the top-level Bubble Tea model.
 type Model struct {
-	list     list.Model
-	viewport viewport.Model
-	skills   []discovery.Skill
-	width    int
-	height   int
-	ready    bool
+	list          list.Model
+	viewport      viewport.Model
+	skills        []discovery.Skill
+	styleOpt      glamour.TermRendererOption
+	renderer      *glamour.TermRenderer
+	rendererWidth int
+	width         int
+	height        int
+	ready         bool
 }
 
 // New creates a new TUI model from discovered skills.
-func New(skills []discovery.Skill) Model {
+func New(skills []discovery.Skill, styleOpt glamour.TermRendererOption) Model {
 	items := make([]list.Item, len(skills))
 	for i, s := range skills {
 		items[i] = skillItem{skill: s}
@@ -54,8 +57,9 @@ func New(skills []discovery.Skill) Model {
 	l.SetShowStatusBar(false)
 
 	return Model{
-		list:   l,
-		skills: skills,
+		list:     l,
+		skills:   skills,
+		styleOpt: styleOpt,
 	}
 }
 
@@ -126,16 +130,21 @@ func (m Model) updateViewportContent() Model {
 		width = 20
 	}
 
-	renderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(width),
-	)
-	if err != nil {
-		m.viewport.SetContent(fmt.Sprintf("Render error: %v", err))
-		return m
+	// Recreate renderer only when width changes.
+	if m.renderer == nil || width != m.rendererWidth {
+		r, err := glamour.NewTermRenderer(
+			m.styleOpt,
+			glamour.WithWordWrap(width),
+		)
+		if err != nil {
+			m.viewport.SetContent(fmt.Sprintf("Render error: %v", err))
+			return m
+		}
+		m.renderer = r
+		m.rendererWidth = width
 	}
 
-	rendered, err := renderer.Render(selected.skill.Content)
+	rendered, err := m.renderer.Render(selected.skill.Content)
 	if err != nil {
 		m.viewport.SetContent(fmt.Sprintf("Render error: %v", err))
 		return m
