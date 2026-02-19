@@ -107,16 +107,19 @@ func activationTag(style discovery.ActivationStyle) string {
 }
 
 // activationBanner returns a human-readable activation hint for the detail panel.
+// The PaddingLeft(2) matches Glamour's default block margin so the banner
+// aligns with the rendered markdown below it.
 func activationBanner(style discovery.ActivationStyle) string {
+	base := lipgloss.NewStyle().PaddingLeft(2)
 	switch style {
 	case discovery.ActivationDirective:
-		return lipgloss.NewStyle().Foreground(directiveColor).Render(
+		return base.Foreground(directiveColor).Render(
 			"Strong wording — Claude will almost always pick up this skill automatically.")
 	case discovery.ActivationPassive:
-		return lipgloss.NewStyle().Foreground(passiveColor).Render(
+		return base.Foreground(passiveColor).Render(
 			"Weak wording — Claude may skip this skill. Use MUST/ALWAYS/NEVER in the description to improve activation.")
 	default:
-		return lipgloss.NewStyle().Foreground(neutralColor).Render(
+		return base.Foreground(neutralColor).Render(
 			"No activation signals found in description. Add directive language like MUST, ALWAYS, or NEVER to ensure Claude invokes this skill.")
 	}
 }
