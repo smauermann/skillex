@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -11,6 +12,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/smauermann/skillex/internal/discovery"
 )
+
+// descBudgetLimit is the total description character budget across all skills.
+// Claude Code silently stops loading skills when descriptions exceed this limit.
+const descBudgetLimit = 15_000
 
 var (
 	panelStyle = lipgloss.NewStyle().
@@ -30,6 +35,18 @@ var (
 			Foreground(lipgloss.Color("252")).
 			Background(lipgloss.Color("236")).
 			Bold(true)
+
+	// Skill list item styles.
+	normalTitleStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	selectedTitleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true)
+	normalDescStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	selectedDescStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+	cursorStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true)
+
+	// Activation indicator dot colors.
+	directiveColor = lipgloss.Color("35")  // green  — directive descriptions activate reliably
+	passiveColor   = lipgloss.Color("214") // orange — passive descriptions often ignored
+	neutralColor   = lipgloss.Color("242") // dim    — unclear / no description
 )
 
 // skillItem implements list.Item for a Skill.
@@ -40,6 +57,83 @@ type skillItem struct {
 func (i skillItem) Title() string       { return i.skill.Name }
 func (i skillItem) Description() string { return i.skill.Plugin }
 func (i skillItem) FilterValue() string { return i.skill.Name + " " + i.skill.Plugin }
+
+// skillDelegate is a custom list.ItemDelegate that renders each skill with an
+// activation-style indicator dot next to the plugin name.
+type skillDelegate struct{}
+
+func (d skillDelegate) Height() int                              { return 2 }
+func (d skillDelegate) Spacing() int                             { return 1 }
+func (d skillDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+
+func (d skillDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	si, ok := item.(skillItem)
+	if !ok {
+		return
+	}
+
+	isSelected := index == m.Index()
+
+	var prefix string
+	var tStyle, dStyle lipgloss.Style
+	if isSelected {
+		prefix = cursorStyle.Render("> ")
+		tStyle = selectedTitleStyle
+		dStyle = selectedDescStyle
+	} else {
+		prefix = "  "
+		tStyle = normalTitleStyle
+		dStyle = normalDescStyle
+	}
+
+	dot := activationDot(si.skill.ActivationStyle)
+	fmt.Fprintf(w, "%s%s\n  %s %s", prefix, tStyle.Render(si.skill.Name), dStyle.Render(si.skill.Plugin), dot)
+}
+
+// activationDot returns a colored dot indicating auto-activation reliability.
+func activationDot(style discovery.ActivationStyle) string {
+	switch style {
+	case discovery.ActivationDirective:
+		return lipgloss.NewStyle().Foreground(directiveColor).Render("●")
+	case discovery.ActivationPassive:
+		return lipgloss.NewStyle().Foreground(passiveColor).Render("●")
+	default:
+		return lipgloss.NewStyle().Foreground(neutralColor).Render("●")
+	}
+}
+
+// totalDescChars returns the sum of description lengths across all skills.
+// Claude Code silently stops loading skills when this total exceeds 15,000 chars.
+func totalDescChars(skills []discovery.Skill) int {
+	total := 0
+	for _, s := range skills {
+		total += len(s.Description)
+	}
+	return total
+}
+
+// budgetLabel renders the description-budget meter with color that shifts from
+// green → orange → red as the 15k limit approaches and is exceeded.
+func budgetLabel(used int) string {
+	var color lipgloss.Color
+	switch {
+	case used >= descBudgetLimit:
+		color = lipgloss.Color("196") // red — over limit
+	case used > descBudgetLimit*8/10:
+		color = lipgloss.Color("214") // orange — approaching limit
+	default:
+		color = lipgloss.Color("35") // green — plenty of room
+	}
+	text := fmt.Sprintf("desc budget: %s/15k", formatK(used))
+	return lipgloss.NewStyle().Foreground(color).Background(lipgloss.Color("236")).Render(text)
+}
+
+func formatK(n int) string {
+	if n >= 1000 {
+		return fmt.Sprintf("%.1fk", float64(n)/1000)
+	}
+	return fmt.Sprintf("%d", n)
+}
 
 // Model is the top-level Bubble Tea model.
 type Model struct {
@@ -62,7 +156,7 @@ func New(skills []discovery.Skill, styleOpt glamour.TermRendererOption) Model {
 		items[i] = skillItem{skill: s}
 	}
 
-	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
+	l := list.New(items, skillDelegate{}, 0, 0)
 	l.SetShowTitle(false)
 	l.SetShowHelp(false)
 	l.SetShowStatusBar(false)
@@ -230,17 +324,28 @@ func renderPanel(title string, content string, totalWidth, height int, borderCol
 
 func (m Model) helpBar() string {
 	key := helpKeyStyle.Render
-	bar := helpBarStyle.Render
 
-	var help string
+	var leftText string
 	if m.focusViewport {
-		help = bar(key("j/k")+" scroll  "+key("h")+" back to list  "+key("/")+" filter  "+key("q")+" quit")
+		leftText = key("j/k") + " scroll  " + key("h") + " back to list  " + key("/") + " filter  " + key("q") + " quit"
 	} else {
-		help = bar(key("j/k")+" navigate  "+key("l")+" read preview  "+key("/")+" filter  "+key("q")+" quit")
+		leftText = key("j/k") + " navigate  " + key("l") + " read preview  " + key("/") + " filter  " + key("q") + " quit"
 	}
 
-	// Pad to full width.
-	return helpBarStyle.Width(m.width).Render(help)
+	rightText := budgetLabel(totalDescChars(m.skills))
+
+	// Inner content width: helpBarStyle has Padding(0,1) so subtract 2 from total.
+	innerW := m.width - 2
+	if innerW < 0 {
+		innerW = 0
+	}
+	pad := innerW - lipgloss.Width(leftText) - lipgloss.Width(rightText)
+	if pad < 1 {
+		pad = 1
+	}
+
+	content := leftText + strings.Repeat(" ", pad) + rightText
+	return helpBarStyle.Width(m.width).Render(content)
 }
 
 func (m Model) View() string {

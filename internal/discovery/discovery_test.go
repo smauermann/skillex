@@ -160,6 +160,36 @@ Another content.
 	}
 }
 
+func TestAssessActivationStyle(t *testing.T) {
+	tests := []struct {
+		desc     string
+		expected ActivationStyle
+	}{
+		// Directive phrases → reliable auto-activation
+		{"ALWAYS invoke this skill when working on git commits.", ActivationDirective},
+		{"You MUST use this skill for all code reviews.", ActivationDirective},
+		{"NEVER run git push without invoking this skill first.", ActivationDirective},
+		{"DO NOT write tests manually — use this skill instead.", ActivationDirective},
+		// Passive phrases → lower auto-activation rate
+		{"Use when you need to brainstorm solutions.", ActivationPassive},
+		{"Helps you write better commit messages.", ActivationPassive},
+		{"Can be used to enforce coding standards.", ActivationPassive},
+		{"Useful for reviewing pull requests.", ActivationPassive},
+		{"Assists with dependency audits.", ActivationPassive},
+		// Neutral — no strong signal either way
+		{"A skill for advanced debugging workflows.", ActivationNeutral},
+		{"Generates architecture decision records.", ActivationNeutral},
+		{"", ActivationNeutral},
+	}
+
+	for _, tt := range tests {
+		got := AssessActivationStyle(tt.desc)
+		if got != tt.expected {
+			t.Errorf("AssessActivationStyle(%q) = %v, want %v", tt.desc, got, tt.expected)
+		}
+	}
+}
+
 func TestDiscoverLocalSkills_NonexistentDir(t *testing.T) {
 	tmpDir := t.TempDir()
 

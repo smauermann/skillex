@@ -11,13 +11,47 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ActivationStyle describes how likely a skill description is to trigger
+// Claude's automatic invocation based on community research into description wording.
+type ActivationStyle int
+
+const (
+	// ActivationNeutral is the default when the description doesn't clearly signal
+	// directive or passive intent.
+	ActivationNeutral ActivationStyle = iota
+	// ActivationDirective means the description uses imperative language
+	// ("ALWAYS invoke", "MUST use") which correlates with ~98% auto-activation rates.
+	ActivationDirective
+	// ActivationPassive means the description uses descriptive language
+	// ("Use when", "Helps with") which correlates with ~69% auto-activation rates.
+	ActivationPassive
+)
+
+// AssessActivationStyle returns the invocation style based on description wording.
+// Directive descriptions activate reliably; passive descriptions are often ignored.
+func AssessActivationStyle(description string) ActivationStyle {
+	upper := strings.ToUpper(strings.TrimSpace(description))
+	for _, kw := range []string{"ALWAYS ", "MUST ", "NEVER ", "DO NOT "} {
+		if strings.Contains(upper, kw) {
+			return ActivationDirective
+		}
+	}
+	for _, kw := range []string{"USE WHEN", "HELPS ", "CAN BE USED", "USEFUL FOR", "ASSISTS "} {
+		if strings.Contains(upper, kw) {
+			return ActivationPassive
+		}
+	}
+	return ActivationNeutral
+}
+
 // Skill represents a single discovered Claude Code skill.
 type Skill struct {
-	Name        string
-	Description string
-	Plugin      string
-	FilePath    string
-	Content     string
+	Name            string
+	Description     string
+	Plugin          string
+	FilePath        string
+	Content         string
+	ActivationStyle ActivationStyle
 }
 
 type installedPlugins struct {
@@ -65,11 +99,12 @@ func discoverSkillsInDir(dir string, pluginName string) []Skill {
 		}
 
 		skills = append(skills, Skill{
-			Name:        name,
-			Description: fm.Description,
-			Plugin:      pluginName,
-			FilePath:    skillFile,
-			Content:     body,
+			Name:            name,
+			Description:     fm.Description,
+			Plugin:          pluginName,
+			FilePath:        skillFile,
+			Content:         body,
+			ActivationStyle: AssessActivationStyle(fm.Description),
 		})
 	}
 	return skills
