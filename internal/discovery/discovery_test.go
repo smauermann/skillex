@@ -99,6 +99,9 @@ Some content here.
 	if s.Content != "# Brainstorming\n\nSome content here." {
 		t.Errorf("unexpected Content: %q", s.Content)
 	}
+	if !strings.Contains(s.Frontmatter, "name: brainstorming") {
+		t.Errorf("expected Frontmatter to contain 'name: brainstorming', got %q", s.Frontmatter)
+	}
 }
 
 func TestDiscoverLocalSkills(t *testing.T) {
