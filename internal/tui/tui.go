@@ -47,7 +47,7 @@ var (
 	selectedDescStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
 	cursorStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true)
 
-	// Activation indicator dot colors.
+	// Activation tag colors.
 	directiveColor = lipgloss.Color("35")  // green  — directive descriptions activate reliably
 	passiveColor   = lipgloss.Color("214") // orange — passive descriptions often ignored
 	neutralColor   = lipgloss.Color("242") // dim    — unclear / no description
@@ -63,7 +63,7 @@ func (i skillItem) Description() string { return i.skill.Plugin }
 func (i skillItem) FilterValue() string { return i.skill.Name + " " + i.skill.Plugin }
 
 // skillDelegate is a custom list.ItemDelegate that renders each skill with an
-// activation-style indicator dot next to the plugin name.
+// activation-style tag next to the plugin name.
 type skillDelegate struct{}
 
 func (d skillDelegate) Height() int                              { return 2 }
@@ -90,19 +90,19 @@ func (d skillDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 		dStyle = normalDescStyle
 	}
 
-	dot := activationDot(si.skill.ActivationStyle)
-	fmt.Fprintf(w, "%s%s\n  %s %s", prefix, tStyle.Render(si.skill.Name), dStyle.Render(si.skill.Plugin), dot)
+	tag := activationTag(si.skill.ActivationStyle)
+	fmt.Fprintf(w, "%s%s\n  %s %s", prefix, tStyle.Render(si.skill.Name), dStyle.Render(si.skill.Plugin), tag)
 }
 
-// activationDot returns a colored dot indicating auto-activation reliability.
-func activationDot(style discovery.ActivationStyle) string {
+// activationTag returns a colored word indicating auto-activation reliability.
+func activationTag(style discovery.ActivationStyle) string {
 	switch style {
 	case discovery.ActivationDirective:
-		return lipgloss.NewStyle().Foreground(directiveColor).Render("●")
+		return lipgloss.NewStyle().Foreground(directiveColor).Render("directive")
 	case discovery.ActivationPassive:
-		return lipgloss.NewStyle().Foreground(passiveColor).Render("●")
+		return lipgloss.NewStyle().Foreground(passiveColor).Render("passive")
 	default:
-		return lipgloss.NewStyle().Foreground(neutralColor).Render("●")
+		return lipgloss.NewStyle().Foreground(neutralColor).Render("unknown")
 	}
 }
 
