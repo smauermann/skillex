@@ -106,6 +106,45 @@ func activationTag(style discovery.ActivationStyle) string {
 	}
 }
 
+// activationBanner returns a human-readable activation hint for the detail panel.
+func activationBanner(style discovery.ActivationStyle) string {
+	switch style {
+	case discovery.ActivationDirective:
+		return lipgloss.NewStyle().Foreground(directiveColor).Render(
+			"Strong wording — Claude will almost always pick up this skill automatically.")
+	case discovery.ActivationPassive:
+		return lipgloss.NewStyle().Foreground(passiveColor).Render(
+			"Weak wording — Claude may skip this skill. Use MUST/ALWAYS/NEVER in the description to improve activation.")
+	default:
+		return lipgloss.NewStyle().Foreground(neutralColor).Render(
+			"No activation signals found in description. Add directive language like MUST, ALWAYS, or NEVER to ensure Claude invokes this skill.")
+	}
+}
+
+// renderFrontmatter converts raw YAML frontmatter into styled bold key/value markdown lines.
+func renderFrontmatter(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	var buf strings.Builder
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Only simple key: value lines are rendered; multi-line YAML
+		// values and list items are skipped.
+		if idx := strings.Index(line, ":"); idx != -1 {
+			key := strings.TrimSpace(line[:idx])
+			val := strings.TrimSpace(line[idx+1:])
+			// Strip surrounding quotes from YAML values.
+			val = strings.Trim(val, "\"'")
+			buf.WriteString(fmt.Sprintf("**%s:** %s\n\n", key, val))
+		}
+	}
+	return buf.String()
+}
+
 // totalDescChars returns the sum of description lengths across all skills.
 // Claude Code silently stops loading skills when this total exceeds 15,000 chars.
 func totalDescChars(skills []discovery.Skill) int {
@@ -283,7 +322,18 @@ func (m Model) updateViewportContent() Model {
 		m.rendererWidth = width
 	}
 
-	rendered, err := m.renderer.Render(selected.skill.Content)
+	// Build the detail content: banner + frontmatter + separator + body.
+	var detail strings.Builder
+	detail.WriteString(activationBanner(selected.skill.ActivationStyle))
+	detail.WriteString("\n\n")
+	fm := renderFrontmatter(selected.skill.Frontmatter)
+	if fm != "" {
+		detail.WriteString(fm)
+		detail.WriteString("---\n\n")
+	}
+	detail.WriteString(selected.skill.Content)
+
+	rendered, err := m.renderer.Render(detail.String())
 	if err != nil {
 		m.viewport.SetContent(fmt.Sprintf("Render error: %v", err))
 		return m
