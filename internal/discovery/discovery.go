@@ -153,9 +153,7 @@ func Discover(pluginsFile string, localDirs []LocalSkillsDir) ([]Skill, error) {
 	return skills, nil
 }
 
-func parseFrontmatter(content []byte) (frontmatter, string, string, error) {
-	var fm frontmatter
-
+func parseFrontmatter(content []byte) (fm frontmatter, rawYAML string, body string, err error) {
 	trimmed := bytes.TrimSpace(content)
 	if !bytes.HasPrefix(trimmed, []byte("---")) {
 		return fm, "", string(content), nil
@@ -168,11 +166,11 @@ func parseFrontmatter(content []byte) (frontmatter, string, string, error) {
 	}
 
 	yamlBlock := rest[:idx]
-	body := rest[idx+4:]
+	bodyBytes := rest[idx+4:]
 
-	if err := yaml.Unmarshal(yamlBlock, &fm); err != nil {
+	if err = yaml.Unmarshal(yamlBlock, &fm); err != nil {
 		return fm, "", string(content), err
 	}
 
-	return fm, string(bytes.TrimSpace(yamlBlock)), string(bytes.TrimSpace(body)), nil
+	return fm, string(bytes.TrimSpace(yamlBlock)), string(bytes.TrimSpace(bodyBytes)), nil
 }
