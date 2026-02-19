@@ -51,6 +51,7 @@ type Skill struct {
 	Plugin          string
 	FilePath        string
 	Content         string
+	Frontmatter     string
 	ActivationStyle ActivationStyle
 }
 
@@ -88,7 +89,7 @@ func discoverSkillsInDir(dir string, pluginName string) []Skill {
 			continue
 		}
 
-		fm, body, err := parseFrontmatter(content)
+		fm, rawFM, body, err := parseFrontmatter(content)
 		if err != nil {
 			continue
 		}
@@ -104,6 +105,7 @@ func discoverSkillsInDir(dir string, pluginName string) []Skill {
 			Plugin:          pluginName,
 			FilePath:        skillFile,
 			Content:         body,
+			Frontmatter:     rawFM,
 			ActivationStyle: AssessActivationStyle(fm.Description),
 		})
 	}
@@ -151,26 +153,26 @@ func Discover(pluginsFile string, localDirs []LocalSkillsDir) ([]Skill, error) {
 	return skills, nil
 }
 
-func parseFrontmatter(content []byte) (frontmatter, string, error) {
+func parseFrontmatter(content []byte) (frontmatter, string, string, error) {
 	var fm frontmatter
 
 	trimmed := bytes.TrimSpace(content)
 	if !bytes.HasPrefix(trimmed, []byte("---")) {
-		return fm, string(content), nil
+		return fm, "", string(content), nil
 	}
 
 	rest := trimmed[3:]
 	idx := bytes.Index(rest, []byte("\n---"))
 	if idx == -1 {
-		return fm, string(content), nil
+		return fm, "", string(content), nil
 	}
 
 	yamlBlock := rest[:idx]
 	body := rest[idx+4:]
 
 	if err := yaml.Unmarshal(yamlBlock, &fm); err != nil {
-		return fm, string(content), err
+		return fm, "", string(content), err
 	}
 
-	return fm, string(bytes.TrimSpace(body)), nil
+	return fm, string(bytes.TrimSpace(yamlBlock)), string(bytes.TrimSpace(body)), nil
 }

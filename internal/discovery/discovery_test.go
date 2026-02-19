@@ -190,6 +190,54 @@ func TestAssessActivationStyle(t *testing.T) {
 	}
 }
 
+func TestSkillFrontmatter(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pluginsJSON := `{"version": 2, "plugins": {}}`
+	pluginsFile := filepath.Join(tmpDir, "installed_plugins.json")
+	if err := os.WriteFile(pluginsFile, []byte(pluginsJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	localDir := filepath.Join(tmpDir, "skills")
+	skillDir := filepath.Join(localDir, "my-skill")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(`---
+name: my-skill
+description: "A test skill."
+license: MIT
+---
+
+Body content.
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skills, err := Discover(pluginsFile, []LocalSkillsDir{
+		{Path: localDir, Name: "test"},
+	})
+	if err != nil {
+		t.Fatalf("Discover() error: %v", err)
+	}
+	if len(skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(skills))
+	}
+
+	s := skills[0]
+	if s.Frontmatter == "" {
+		t.Fatal("expected non-empty Frontmatter")
+	}
+	if !strings.Contains(s.Frontmatter, "license: MIT") {
+		t.Errorf("expected Frontmatter to contain 'license: MIT', got %q", s.Frontmatter)
+	}
+	if !strings.Contains(s.Frontmatter, "name: my-skill") {
+		t.Errorf("expected Frontmatter to contain 'name: my-skill', got %q", s.Frontmatter)
+	}
+}
+
 func TestDiscoverLocalSkills_NonexistentDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
