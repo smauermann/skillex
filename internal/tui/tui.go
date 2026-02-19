@@ -322,24 +322,25 @@ func (m Model) updateViewportContent() Model {
 		m.rendererWidth = width
 	}
 
-	// Build the detail content: banner + frontmatter + separator + body.
-	var detail strings.Builder
-	detail.WriteString(activationBanner(selected.skill.ActivationStyle))
-	detail.WriteString("\n\n")
+	// Build the markdown content: frontmatter + separator + body.
+	// The banner is lipgloss-styled and must stay outside Glamour to
+	// avoid ANSI escape codes being mangled by the markdown renderer.
+	var md strings.Builder
 	fm := renderFrontmatter(selected.skill.Frontmatter)
 	if fm != "" {
-		detail.WriteString(fm)
-		detail.WriteString("---\n\n")
+		md.WriteString(fm)
+		md.WriteString("---\n\n")
 	}
-	detail.WriteString(selected.skill.Content)
+	md.WriteString(selected.skill.Content)
 
-	rendered, err := m.renderer.Render(detail.String())
+	rendered, err := m.renderer.Render(md.String())
 	if err != nil {
 		m.viewport.SetContent(fmt.Sprintf("Render error: %v", err))
 		return m
 	}
 
-	m.viewport.SetContent(rendered)
+	banner := activationBanner(selected.skill.ActivationStyle)
+	m.viewport.SetContent(banner + "\n\n" + rendered)
 	m.viewport.GotoTop()
 	return m
 }
