@@ -66,8 +66,8 @@ func (i skillItem) FilterValue() string { return i.skill.Name + " " + i.skill.Pl
 // activation-style tag next to the plugin name.
 type skillDelegate struct{}
 
-func (d skillDelegate) Height() int                              { return 2 }
-func (d skillDelegate) Spacing() int                             { return 1 }
+func (d skillDelegate) Height() int                             { return 2 }
+func (d skillDelegate) Spacing() int                            { return 1 }
 func (d skillDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
 func (d skillDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
@@ -331,6 +331,7 @@ func (m Model) updateViewportContent() Model {
 	var md strings.Builder
 	fm := renderFrontmatter(selected.skill.Frontmatter)
 	if fm != "" {
+		md.WriteString("---\n\n")
 		md.WriteString(fm)
 		md.WriteString("---\n\n")
 	}
@@ -343,7 +344,7 @@ func (m Model) updateViewportContent() Model {
 	}
 
 	banner := activationBanner(selected.skill.ActivationStyle)
-	m.viewport.SetContent(banner + "\n\n" + rendered)
+	m.viewport.SetContent(banner + "\n" + rendered)
 	m.viewport.GotoTop()
 	return m
 }
