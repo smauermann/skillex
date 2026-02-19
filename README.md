@@ -10,7 +10,7 @@ A TUI for browsing and reading your installed [Claude Code](https://docs.anthrop
 - Split-pane layout with filterable skill list and rendered markdown preview
 - Vim-style `hjkl` navigation
 - **Activation health indicators** — colored dot per skill shows whether its description is likely to auto-invoke
-- **Description budget meter** — tracks total description length against the 15,000-character limit before skills silently stop loading
+- **Description budget meter** — tracks total description length against the 16,000-character limit before skills silently stop loading
 
 ## Skill health indicators
 
@@ -35,15 +35,15 @@ Auto-invocation in Claude Code is unreliable by default. Testing by [Scott Spenc
 
 ### Description budget meter
 
-The bottom bar shows `desc budget: X/15k` tracking the total length of all skill descriptions combined:
+The bottom bar shows `desc budget: X/16k` tracking the total length of all skill descriptions combined:
 
 | Color | Meaning |
 |-------|---------|
-| Green | Under 12,000 chars (80%) — plenty of room |
-| Orange | 12,000–14,999 chars — approaching the limit |
-| Red | 15,000+ chars — over the limit |
+| Green | Under 12,800 chars (80%) — plenty of room |
+| Orange | 12,800–15,999 chars — approaching the limit |
+| Red | 16,000+ chars — over the limit |
 
-Claude Code loads skill descriptions into context at startup. When the combined total of all skill descriptions exceeds **15,000 characters**, skills silently stop appearing — no error, no warning, skills just disappear. This was documented in [GitHub issue #14882](https://github.com/anthropics/claude-code/issues/14882), where controlled tests showed full description content loading at startup rather than the progressive disclosure described in Anthropic's documentation. Users with multiple plugins installed reported skills consuming 26,000+ chars (13% of the context window) before any conversation starts.
+Claude Code loads all skill descriptions into its system prompt at startup under an `available_skills` section. The budget for that section is **16,000 characters** (or 2% of the model's context window, whichever is larger). When the combined total of all skill descriptions exceeds the budget, skills are silently excluded — no error, no warning, they just stop appearing to Claude. The limit was first documented empirically in [GitHub issue #13099](https://github.com/anthropics/claude-code/issues/13099), where researchers found 42 of 63 installed skills invisible once the total crossed ~15,500 chars. It is now [officially documented](https://code.claude.com/docs/en/skills) in the Claude Code troubleshooting guide and can be raised by setting the `SLASH_COMMAND_TOOL_CHAR_BUDGET` environment variable.
 
 ## Installation
 

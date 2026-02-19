@@ -13,9 +13,13 @@ import (
 	"github.com/smauermann/skillex/internal/discovery"
 )
 
-// descBudgetLimit is the total description character budget across all skills.
-// Claude Code silently stops loading skills when descriptions exceed this limit.
-const descBudgetLimit = 15_000
+// descBudgetLimit is the fallback character budget for all skill descriptions
+// combined in Claude Code's available_skills system prompt section.
+// The actual limit scales dynamically at 2% of the model's context window,
+// with 16,000 chars as the documented fallback. Skills that don't fit are
+// silently excluded with no warning.
+// Source: https://github.com/anthropics/claude-code/issues/13099
+const descBudgetLimit = 16_000
 
 var (
 	panelStyle = lipgloss.NewStyle().
@@ -113,7 +117,7 @@ func totalDescChars(skills []discovery.Skill) int {
 }
 
 // budgetLabel renders the description-budget meter with color that shifts from
-// green → orange → red as the 15k limit approaches and is exceeded.
+// green → orange → red as the 16k limit approaches and is exceeded.
 func budgetLabel(used int) string {
 	var color lipgloss.Color
 	switch {
@@ -124,7 +128,7 @@ func budgetLabel(used int) string {
 	default:
 		color = lipgloss.Color("35") // green — plenty of room
 	}
-	text := fmt.Sprintf("desc budget: %s/15k", formatK(used))
+	text := fmt.Sprintf("desc budget: %s/%dk", formatK(used), descBudgetLimit/1000)
 	return lipgloss.NewStyle().Foreground(color).Background(lipgloss.Color("236")).Render(text)
 }
 
