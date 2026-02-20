@@ -340,18 +340,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Content width = total panel width - borders(2) - padding(2)
 		listContentWidth := listWidth - 4
 		vpContentWidth := viewportWidth - 4
-		// Content height = total - top border(1) - bottom border(1)
-		innerHeight := contentHeight - 2
 
-		m.list.SetSize(listContentWidth, innerHeight)
+		// Analytics panel: 4 inner rows + top border(1) + bottom border(1) = 6 total rows
+		analyticsHeight := 6
+
+		// List panel: full content height minus borders
+		listInnerHeight := contentHeight - 2
+
+		// Viewport panel: remaining height after analytics panel and its borders
+		vpInnerHeight := contentHeight - analyticsHeight - 2
+
+		m.list.SetSize(listContentWidth, listInnerHeight)
 
 		if !m.ready {
-			m.viewport = viewport.New(vpContentWidth, innerHeight)
+			m.viewport = viewport.New(vpContentWidth, vpInnerHeight)
 			m.ready = true
 			m = m.updateViewportContent()
 		} else {
 			m.viewport.Width = vpContentWidth
-			m.viewport.Height = innerHeight
+			m.viewport.Height = vpInnerHeight
 		}
 	}
 
@@ -501,8 +508,15 @@ func (m Model) View() string {
 	listWidth := m.width / 3
 	viewportWidth := m.width - listWidth
 
-	// Panel inner height: total content area minus top border (1) + bottom border (1) + top/bottom padding from border
-	panelHeight := contentHeight - 3
+	// Analytics panel: 4 inner rows
+	analyticsInnerHeight := 4
+	analyticsHeight := analyticsInnerHeight + 2 // + borders
+
+	// List panel: full content height - borders
+	listPanelHeight := contentHeight - 3
+
+	// Viewport panel: remaining
+	vpPanelHeight := contentHeight - analyticsHeight - 3
 
 	// Border colors: focused pane gets accent, other is dim
 	listBorderColor := focusedBorderColor
@@ -512,13 +526,23 @@ func (m Model) View() string {
 		vpBorderColor = focusedBorderColor
 	}
 
-	// Left pane: Skills list in bordered panel (pass total panel width)
-	leftPane := renderPanel("Skills", m.list.View(), listWidth, panelHeight, listBorderColor)
+	// Left pane: Skills list
+	leftPane := renderPanel("Skills", m.list.View(), listWidth, listPanelHeight, listBorderColor)
 
-	// Right pane: Viewport in bordered panel
-	rightPane := renderPanel("SKILL.md", m.viewport.View(), viewportWidth, panelHeight, vpBorderColor)
+	// Right pane top: Skill Analytics
+	var analyticsContent string
+	if selected, ok := m.list.SelectedItem().(skillItem); ok {
+		analyticsContent = renderAnalyticsPanel(selected.skill, m.skills, viewportWidth-4)
+	} else {
+		analyticsContent = lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Render("No skill selected.")
+	}
+	analyticsPane := renderPanel("Skill Analytics", analyticsContent, viewportWidth, analyticsInnerHeight, vpBorderColor)
 
-	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+	// Right pane bottom: SKILL.md viewport
+	vpPane := renderPanel("SKILL.md", m.viewport.View(), viewportWidth, vpPanelHeight, vpBorderColor)
+
+	rightColumn := lipgloss.JoinVertical(lipgloss.Left, analyticsPane, vpPane)
+	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightColumn)
 
 	return lipgloss.JoinVertical(lipgloss.Left, panes, m.helpBar())
 }
