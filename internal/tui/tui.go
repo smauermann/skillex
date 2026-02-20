@@ -199,13 +199,6 @@ func totalDescChars(skills []discovery.Skill) int {
 	return total
 }
 
-func formatK(n int) string {
-	if n >= 1000 {
-		return fmt.Sprintf("%.1fk", float64(n)/1000)
-	}
-	return fmt.Sprintf("%d", n)
-}
-
 // progressBar renders a colored bar of filled and empty blocks.
 func progressBar(fraction float64, width int) string {
 	if fraction < 0 {
