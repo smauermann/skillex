@@ -167,13 +167,13 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 	switch {
 	case totalChars >= descBudgetLimit:
 		legend = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(
-			strings.Repeat(" ", 13) + "Over limit — skills are being silently excluded")
+			strings.Repeat(" ", 13) + "Exceeded — some skills won't be visible to Claude")
 	case totalChars > descBudgetLimit*8/10:
 		legend = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render(
-			strings.Repeat(" ", 13) + "Approaching limit — consider shortening descriptions")
+			strings.Repeat(" ", 13) + "Tight — adding more skills risks silent exclusion")
 	default:
 		legend = dimStyle.Render(
-			strings.Repeat(" ", 13) + "Within budget — all skill descriptions fit")
+			strings.Repeat(" ", 13) + "Healthy — all descriptions fit into Claude's context")
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, activationLine, descLine, budgetLine, barLine, legend)
