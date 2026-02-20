@@ -54,9 +54,9 @@ var (
 
 	// analyticsLabelStyle is the left-column label in the analytics panel.
 	analyticsLabelStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243")).
-		Bold(true).
-		Width(13)
+				Foreground(lipgloss.Color("243")).
+				Bold(true).
+				Width(13)
 )
 
 // skillItem implements list.Item for a Skill.
