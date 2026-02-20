@@ -181,6 +181,32 @@ func formatK(n int) string {
 	return fmt.Sprintf("%d", n)
 }
 
+// progressBar renders a colored bar of filled and empty blocks.
+func progressBar(fraction float64, width int) string {
+	if fraction < 0 {
+		fraction = 0
+	}
+	if fraction > 1 {
+		fraction = 1
+	}
+	filled := int(fraction * float64(width))
+	empty := width - filled
+
+	var color lipgloss.Color
+	switch {
+	case fraction >= 1:
+		color = lipgloss.Color("196") // red
+	case fraction > 0.8:
+		color = lipgloss.Color("214") // orange
+	default:
+		color = lipgloss.Color("35") // green
+	}
+
+	bar := lipgloss.NewStyle().Foreground(color).Render(strings.Repeat("\u2588", filled))
+	bar += lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(strings.Repeat("\u2591", empty))
+	return bar
+}
+
 // Model is the top-level Bubble Tea model.
 type Model struct {
 	list          list.Model
