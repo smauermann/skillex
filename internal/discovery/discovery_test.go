@@ -99,6 +99,9 @@ Some content here.
 	if s.Content != "# Brainstorming\n\nSome content here." {
 		t.Errorf("unexpected Content: %q", s.Content)
 	}
+	if !strings.Contains(s.Frontmatter, "name: brainstorming") {
+		t.Errorf("expected Frontmatter to contain 'name: brainstorming', got %q", s.Frontmatter)
+	}
 }
 
 func TestDiscoverLocalSkills(t *testing.T) {
@@ -157,6 +160,84 @@ Another content.
 		if s.Plugin != "my-project" {
 			t.Errorf("expected Plugin %q, got %q for skill %q", "my-project", s.Plugin, s.Name)
 		}
+	}
+}
+
+func TestAssessActivationStyle(t *testing.T) {
+	tests := []struct {
+		desc     string
+		expected ActivationStyle
+	}{
+		// Directive phrases → reliable auto-activation
+		{"ALWAYS invoke this skill when working on git commits.", ActivationDirective},
+		{"You MUST use this skill for all code reviews.", ActivationDirective},
+		{"NEVER run git push without invoking this skill first.", ActivationDirective},
+		{"DO NOT write tests manually — use this skill instead.", ActivationDirective},
+		// Passive phrases → lower auto-activation rate
+		{"Use when you need to brainstorm solutions.", ActivationPassive},
+		{"Helps you write better commit messages.", ActivationPassive},
+		{"Can be used to enforce coding standards.", ActivationPassive},
+		{"Useful for reviewing pull requests.", ActivationPassive},
+		{"Assists with dependency audits.", ActivationPassive},
+		// Neutral — no strong signal either way
+		{"A skill for advanced debugging workflows.", ActivationNeutral},
+		{"Generates architecture decision records.", ActivationNeutral},
+		{"", ActivationNeutral},
+	}
+
+	for _, tt := range tests {
+		got := AssessActivationStyle(tt.desc)
+		if got != tt.expected {
+			t.Errorf("AssessActivationStyle(%q) = %v, want %v", tt.desc, got, tt.expected)
+		}
+	}
+}
+
+func TestSkillFrontmatter(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pluginsJSON := `{"version": 2, "plugins": {}}`
+	pluginsFile := filepath.Join(tmpDir, "installed_plugins.json")
+	if err := os.WriteFile(pluginsFile, []byte(pluginsJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	localDir := filepath.Join(tmpDir, "skills")
+	skillDir := filepath.Join(localDir, "my-skill")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(`---
+name: my-skill
+description: "A test skill."
+license: MIT
+---
+
+Body content.
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skills, err := Discover(pluginsFile, []LocalSkillsDir{
+		{Path: localDir, Name: "test"},
+	})
+	if err != nil {
+		t.Fatalf("Discover() error: %v", err)
+	}
+	if len(skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(skills))
+	}
+
+	s := skills[0]
+	if s.Frontmatter == "" {
+		t.Fatal("expected non-empty Frontmatter")
+	}
+	if !strings.Contains(s.Frontmatter, "license: MIT") {
+		t.Errorf("expected Frontmatter to contain 'license: MIT', got %q", s.Frontmatter)
+	}
+	if !strings.Contains(s.Frontmatter, "name: my-skill") {
+		t.Errorf("expected Frontmatter to contain 'name: my-skill', got %q", s.Frontmatter)
 	}
 }
 
