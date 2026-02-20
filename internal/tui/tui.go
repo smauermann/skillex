@@ -151,15 +151,32 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 	totalChars := totalDescChars(allSkills)
 	totalPct := float64(totalChars) / float64(descBudgetLimit)
 
+	budgetLine := analyticsLabelStyle.Render("Budget") +
+		fmt.Sprintf("%d / %d chars", totalChars, descBudgetLimit)
+
 	barWidth := width - 13 - 6 // label width - " NNN%" suffix
 	if barWidth < 10 {
 		barWidth = 10
 	}
-	budgetLine := analyticsLabelStyle.Render("Budget") +
+	barLine := strings.Repeat(" ", 13) +
 		progressBar(totalPct, barWidth) +
 		fmt.Sprintf(" %d%%", int(totalPct*100))
 
-	return lipgloss.JoinVertical(lipgloss.Left, activationLine, descLine, budgetLine)
+	var legend string
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	switch {
+	case totalChars >= descBudgetLimit:
+		legend = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(
+			strings.Repeat(" ", 13) + "Over limit — skills are being silently excluded")
+	case totalChars > descBudgetLimit*8/10:
+		legend = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render(
+			strings.Repeat(" ", 13) + "Approaching limit — consider shortening descriptions")
+	default:
+		legend = dimStyle.Render(
+			strings.Repeat(" ", 13) + "Within budget — all skill descriptions fit")
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, activationLine, descLine, budgetLine, barLine, legend)
 }
 
 // renderFrontmatter converts raw YAML frontmatter into styled bold key/value markdown lines.
@@ -297,8 +314,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		listContentWidth := listWidth - 4
 		vpContentWidth := viewportWidth - 4
 
-		// Analytics panel: 4 inner rows + top border(1) + bottom border(1) = 6 total rows
-		analyticsHeight := 6
+		// Analytics panel: 6 inner rows + top border(1) + bottom border(1) = 8 total rows
+		analyticsHeight := 8
 
 		// List panel: full content height minus borders
 		listInnerHeight := contentHeight - 2
@@ -448,8 +465,8 @@ func (m Model) View() string {
 	listWidth := m.width / 3
 	viewportWidth := m.width - listWidth
 
-	// Analytics panel: 4 inner rows
-	analyticsInnerHeight := 4
+	// Analytics panel: 6 inner rows
+	analyticsInnerHeight := 6
 	analyticsHeight := analyticsInnerHeight + 2 // + borders
 
 	// List panel: full content height - borders
