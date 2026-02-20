@@ -36,7 +36,7 @@ func AssessActivationStyle(description string) ActivationStyle {
 			return ActivationDirective
 		}
 	}
-	for _, kw := range []string{"USE WHEN", "HELPS ", "CAN BE USED", "USEFUL FOR", "ASSISTS "} {
+	for _, kw := range []string{"USE WHEN", "USE", "APPLY", "HELPS ", "CAN BE USED", "USEFUL FOR", "ASSISTS "} {
 		if strings.Contains(upper, kw) {
 			return ActivationPassive
 		}
