@@ -44,6 +44,9 @@ func TestRenderAnalyticsPanel(t *testing.T) {
 	if !strings.Contains(result, "Activation") {
 		t.Error("expected 'Activation' label")
 	}
+	if !strings.Contains(result, "Description") {
+		t.Error("expected 'Description' label")
+	}
 	if !strings.Contains(result, "Budget") {
 		t.Error("expected 'Budget' label")
 	}

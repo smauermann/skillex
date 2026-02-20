@@ -140,29 +140,26 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 	}
 
 	activationLine := analyticsLabelStyle.Render("Activation") +
-		tag + "  " +
+		tag +
+		lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(" — ") +
 		lipgloss.NewStyle().Foreground(adviceColor).Render(advice)
 
-	totalChars := totalDescChars(allSkills)
 	skillChars := len(skill.Description)
-	pct := float64(0)
-	if totalChars > 0 {
-		pct = float64(skillChars) / float64(descBudgetLimit) * 100
-	}
-	totalPct := float64(totalChars) / float64(descBudgetLimit)
+	descLine := analyticsLabelStyle.Render("Description") +
+		fmt.Sprintf("%d chars", skillChars)
 
-	budgetLine := analyticsLabelStyle.Render("Budget") +
-		fmt.Sprintf("%d / %dk (%.1f%%)", skillChars, descBudgetLimit/1000, pct)
+	totalChars := totalDescChars(allSkills)
+	totalPct := float64(totalChars) / float64(descBudgetLimit)
 
 	barWidth := width - 13 - 6 // label width - " NNN%" suffix
 	if barWidth < 10 {
 		barWidth = 10
 	}
-	barLine := strings.Repeat(" ", 13) +
+	budgetLine := analyticsLabelStyle.Render("Budget") +
 		progressBar(totalPct, barWidth) +
 		fmt.Sprintf(" %d%%", int(totalPct*100))
 
-	return lipgloss.JoinVertical(lipgloss.Left, activationLine, budgetLine, barLine)
+	return lipgloss.JoinVertical(lipgloss.Left, activationLine, descLine, budgetLine)
 }
 
 // renderFrontmatter converts raw YAML frontmatter into styled bold key/value markdown lines.
