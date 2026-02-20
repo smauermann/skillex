@@ -51,6 +51,12 @@ var (
 	directiveColor = lipgloss.Color("35")  // green  — directive descriptions activate reliably
 	passiveColor   = lipgloss.Color("214") // orange — passive descriptions often ignored
 	neutralColor   = lipgloss.Color("242") // dim    — unclear / no description
+
+	// analyticsLabelStyle is the left-column label in the analytics panel.
+	analyticsLabelStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("243")).
+		Bold(true).
+		Width(13)
 )
 
 // skillItem implements list.Item for a Skill.
@@ -122,6 +128,59 @@ func activationBanner(style discovery.ActivationStyle) string {
 		return base.Foreground(neutralColor).Render(
 			"No activation signals found in description. Add directive language like MUST, ALWAYS, or NEVER to ensure Claude invokes this skill.")
 	}
+}
+
+// activationAdvice returns a short one-line explanation for the activation level.
+func activationAdvice(style discovery.ActivationStyle) string {
+	switch style {
+	case discovery.ActivationDirective:
+		return "Claude will almost always auto-activate this skill"
+	case discovery.ActivationPassive:
+		return "Claude may skip this skill — use MUST/ALWAYS/NEVER"
+	default:
+		return "No activation signals — add directive language"
+	}
+}
+
+// renderAnalyticsPanel builds the inner content of the Skill Analytics panel.
+func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, width int) string {
+	tag := activationTag(skill.ActivationStyle)
+	advice := activationAdvice(skill.ActivationStyle)
+
+	var adviceColor lipgloss.Color
+	switch skill.ActivationStyle {
+	case discovery.ActivationDirective:
+		adviceColor = directiveColor
+	case discovery.ActivationPassive:
+		adviceColor = passiveColor
+	default:
+		adviceColor = neutralColor
+	}
+
+	activationLine := analyticsLabelStyle.Render("Activation") +
+		tag + "  " +
+		lipgloss.NewStyle().Foreground(adviceColor).Render(advice)
+
+	totalChars := totalDescChars(allSkills)
+	skillChars := len(skill.Description)
+	pct := float64(0)
+	if totalChars > 0 {
+		pct = float64(skillChars) / float64(descBudgetLimit) * 100
+	}
+	totalPct := float64(totalChars) / float64(descBudgetLimit)
+
+	budgetLine := analyticsLabelStyle.Render("Budget") +
+		fmt.Sprintf("%d / %dk (%.1f%%)", skillChars, descBudgetLimit/1000, pct)
+
+	barWidth := width - 13 - 6 // label width - " NNN%" suffix
+	if barWidth < 10 {
+		barWidth = 10
+	}
+	barLine := strings.Repeat(" ", 13) +
+		progressBar(totalPct, barWidth) +
+		fmt.Sprintf(" %d%%", int(totalPct*100))
+
+	return lipgloss.JoinVertical(lipgloss.Left, activationLine, budgetLine, barLine)
 }
 
 // renderFrontmatter converts raw YAML frontmatter into styled bold key/value markdown lines.

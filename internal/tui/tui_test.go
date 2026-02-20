@@ -1,6 +1,11 @@
 package tui
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/smauermann/skillex/internal/discovery"
+)
 
 func TestProgressBar(t *testing.T) {
 	tests := []struct {
@@ -23,5 +28,23 @@ func TestProgressBar(t *testing.T) {
 				t.Error("expected non-empty progress bar")
 			}
 		})
+	}
+}
+
+func TestRenderAnalyticsPanel(t *testing.T) {
+	skills := []discovery.Skill{
+		{Name: "skill-a", Description: "ALWAYS use this skill.", ActivationStyle: discovery.ActivationDirective},
+		{Name: "skill-b", Description: "Helps with stuff.", ActivationStyle: discovery.ActivationPassive},
+	}
+
+	result := renderAnalyticsPanel(skills[0], skills, 60)
+	if result == "" {
+		t.Fatal("expected non-empty analytics panel content")
+	}
+	if !strings.Contains(result, "Activation") {
+		t.Error("expected 'Activation' label")
+	}
+	if !strings.Contains(result, "Budget") {
+		t.Error("expected 'Budget' label")
 	}
 }
