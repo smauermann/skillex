@@ -199,22 +199,6 @@ func totalDescChars(skills []discovery.Skill) int {
 	return total
 }
 
-// budgetLabel renders the description-budget meter with color that shifts from
-// green → orange → red as the 16k limit approaches and is exceeded.
-func budgetLabel(used int) string {
-	var color lipgloss.Color
-	switch {
-	case used >= descBudgetLimit:
-		color = lipgloss.Color("196") // red — over limit
-	case used > descBudgetLimit*8/10:
-		color = lipgloss.Color("214") // orange — approaching limit
-	default:
-		color = lipgloss.Color("35") // green — plenty of room
-	}
-	text := fmt.Sprintf("desc budget: %s/%dk", formatK(used), descBudgetLimit/1000)
-	return lipgloss.NewStyle().Foreground(color).Background(lipgloss.Color("236")).Render(text)
-}
-
 func formatK(n int) string {
 	if n >= 1000 {
 		return fmt.Sprintf("%.1fk", float64(n)/1000)
@@ -455,26 +439,13 @@ func renderPanel(title string, content string, totalWidth, height int, borderCol
 func (m Model) helpBar() string {
 	key := helpKeyStyle.Render
 
-	var leftText string
+	var content string
 	if m.focusViewport {
-		leftText = key("j/k") + " scroll  " + key("h") + " back to list  " + key("/") + " filter  " + key("q") + " quit"
+		content = key("j/k") + " scroll  " + key("h") + " back to list  " + key("/") + " filter  " + key("q") + " quit"
 	} else {
-		leftText = key("j/k") + " navigate  " + key("l") + " read preview  " + key("/") + " filter  " + key("q") + " quit"
+		content = key("j/k") + " navigate  " + key("l") + " read preview  " + key("/") + " filter  " + key("q") + " quit"
 	}
 
-	rightText := budgetLabel(totalDescChars(m.skills))
-
-	// Inner content width: helpBarStyle has Padding(0,1) so subtract 2 from total.
-	innerW := m.width - 2
-	if innerW < 0 {
-		innerW = 0
-	}
-	pad := innerW - lipgloss.Width(leftText) - lipgloss.Width(rightText)
-	if pad < 1 {
-		pad = 1
-	}
-
-	content := leftText + strings.Repeat(" ", pad) + rightText
 	return helpBarStyle.Width(m.width).Render(content)
 }
 
