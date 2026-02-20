@@ -19,7 +19,10 @@ import (
 // with 16,000 chars as the documented fallback. Skills that don't fit are
 // silently excluded with no warning.
 // Source: https://github.com/anthropics/claude-code/issues/13099
-const descBudgetLimit = 16_000
+const (
+	descBudgetLimit  = 16_000
+	contentWordLimit = 500
+)
 
 var (
 	panelStyle = lipgloss.NewStyle().
@@ -148,6 +151,18 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 	descLine := analyticsLabelStyle.Render("Description") +
 		fmt.Sprintf("%d chars", skillChars)
 
+	wordCount := len(strings.Fields(skill.Frontmatter + " " + skill.Content))
+	contentLine := analyticsLabelStyle.Render("Content") +
+		fmt.Sprintf("%d / %d words", wordCount, contentWordLimit)
+	var contentLegend string
+	if wordCount > contentWordLimit {
+		contentLegend = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(
+			strings.Repeat(" ", 13) + "Verbose — skill is wasting context every conversation")
+	} else {
+		contentLegend = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(
+			strings.Repeat(" ", 13) + "Concise — no context pollution")
+	}
+
 	totalChars := totalDescChars(allSkills)
 	totalPct := float64(totalChars) / float64(descBudgetLimit)
 
@@ -176,7 +191,7 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 			strings.Repeat(" ", 13) + "Healthy — all descriptions fit into Claude's context")
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, activationLine, descLine, budgetLine, barLine, legend)
+	return lipgloss.JoinVertical(lipgloss.Left, activationLine, descLine, contentLine, contentLegend, budgetLine, barLine, legend)
 }
 
 // renderFrontmatter converts raw YAML frontmatter into styled bold key/value markdown lines.
@@ -314,8 +329,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		listContentWidth := listWidth - 4
 		vpContentWidth := viewportWidth - 4
 
-		// Analytics panel: 6 inner rows + top border(1) + bottom border(1) = 8 total rows
-		analyticsHeight := 8
+		// Analytics panel: 8 inner rows + top border(1) + bottom border(1) = 10 total rows
+		analyticsHeight := 10
 
 		// List panel: full content height minus borders
 		listInnerHeight := contentHeight - 2
@@ -465,8 +480,8 @@ func (m Model) View() string {
 	listWidth := m.width / 3
 	viewportWidth := m.width - listWidth
 
-	// Analytics panel: 6 inner rows
-	analyticsInnerHeight := 6
+	// Analytics panel: 8 inner rows
+	analyticsInnerHeight := 8
 	analyticsHeight := analyticsInnerHeight + 2 // + borders
 
 	// List panel: full content height - borders
