@@ -2,6 +2,10 @@ name: CI
 
 on:
   pull_request:
+    paths:
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
 
 jobs:
   test:
