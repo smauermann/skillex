@@ -5,3 +5,5 @@ build:
 run: build
   ./skillex
 
+vhs: build
+  vhs demo.tape
