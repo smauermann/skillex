@@ -51,10 +51,10 @@ var (
 	cursorStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true)
 
 	// Activation tag colors.
-	directiveColor = lipgloss.Color("35")  // green  — directive descriptions activate reliably
-	passiveColor   = lipgloss.Color("214") // orange — passive descriptions often ignored
-	neutralColor   = lipgloss.Color("242") // dim    — unclear / no description
-	disabledColor  = lipgloss.Color("238") // very dim — skill is disabled
+	directiveColor = lipgloss.Color("35")  // green: directive descriptions activate reliably
+	passiveColor   = lipgloss.Color("214") // orange: passive descriptions often ignored
+	neutralColor   = lipgloss.Color("242") // dim: unclear / no description
+	disabledColor  = lipgloss.Color("238") // very dim: skill is disabled
 
 	// analyticsLabelStyle is the left-column label in the analytics panel.
 	analyticsLabelStyle = lipgloss.NewStyle().
@@ -129,9 +129,9 @@ func activationAdvice(style discovery.ActivationStyle) string {
 	case discovery.ActivationDirective:
 		return "Claude will almost always auto-activate this skill"
 	case discovery.ActivationPassive:
-		return "Claude may skip this skill — use MUST/ALWAYS/NEVER"
+		return "Claude may skip this skill, use MUST/ALWAYS/NEVER"
 	default:
-		return "No activation signals — add directive language"
+		return "No activation signals, add directive language"
 	}
 }
 
@@ -145,7 +145,7 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 	} else {
 		statusLine = analyticsLabelStyle.Render("Status") +
 			lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("Disabled") +
-			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(" -- start a new session to apply")
+			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(" (start a new session to apply)")
 	}
 
 	tag := activationTag(skill.ActivationStyle)
@@ -163,7 +163,7 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 
 	activationLine := analyticsLabelStyle.Render("Activation") +
 		tag +
-		lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(" -- ") +
+		lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(" · ") +
 		lipgloss.NewStyle().Foreground(adviceColor).Render(advice)
 
 	skillChars := len(skill.Description)
@@ -176,10 +176,10 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 	var contentLegend string
 	if wordCount > contentWordLimit {
 		contentLegend = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(
-			strings.Repeat(" ", 13) + "Verbose -- skill is wasting context every conversation")
+			strings.Repeat(" ", 13) + "Verbose: skill is wasting context every conversation")
 	} else {
 		contentLegend = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(
-			strings.Repeat(" ", 13) + "Concise -- no context pollution")
+			strings.Repeat(" ", 13) + "Concise: no context pollution")
 	}
 
 	// Budget only counts enabled skills (disabled ones won't load in Claude).
@@ -202,13 +202,13 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 	switch {
 	case totalChars >= descBudgetLimit:
 		legend = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(
-			strings.Repeat(" ", 13) + "Exceeded -- some skills won't be visible to Claude")
+			strings.Repeat(" ", 13) + "Exceeded: some skills won't be visible to Claude")
 	case totalChars > descBudgetLimit*8/10:
 		legend = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render(
-			strings.Repeat(" ", 13) + "Tight -- adding more skills risks silent exclusion")
+			strings.Repeat(" ", 13) + "Tight: adding more skills risks silent exclusion")
 	default:
 		legend = dimStyle.Render(
-			strings.Repeat(" ", 13) + "Healthy -- all descriptions fit into Claude's context")
+			strings.Repeat(" ", 13) + "Healthy: all descriptions fit into Claude's context")
 	}
 
 	// Show savings from disabled skills.
