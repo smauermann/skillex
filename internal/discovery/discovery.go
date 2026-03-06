@@ -53,6 +53,7 @@ type Skill struct {
 	Content         string
 	Frontmatter     string
 	ActivationStyle ActivationStyle
+	Enabled         bool
 }
 
 type installedPlugins struct {
@@ -70,8 +71,10 @@ type frontmatter struct {
 	Description string `yaml:"description"`
 }
 
-// discoverSkillsInDir walks subdirectories of dir, reads SKILL.md files,
-// and returns discovered skills. Returns nil if dir doesn't exist.
+// discoverSkillsInDir walks subdirectories of dir, reads SKILL.md (or
+// SKILL.md.disabled) files and returns discovered skills. A skill whose
+// file is named SKILL.md.disabled has Enabled=false and is invisible to
+// Claude Code. Returns nil if dir doesn't exist.
 func discoverSkillsInDir(dir string, pluginName string) []Skill {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -83,7 +86,21 @@ func discoverSkillsInDir(dir string, pluginName string) []Skill {
 		if !entry.IsDir() {
 			continue
 		}
-		skillFile := filepath.Join(dir, entry.Name(), "SKILL.md")
+
+		enabledPath := filepath.Join(dir, entry.Name(), "SKILL.md")
+		disabledPath := enabledPath + ".disabled"
+
+		// Prefer SKILL.md when both exist.
+		skillFile := enabledPath
+		enabled := true
+		if _, err := os.Stat(enabledPath); os.IsNotExist(err) {
+			if _, err := os.Stat(disabledPath); err != nil {
+				continue
+			}
+			skillFile = disabledPath
+			enabled = false
+		}
+
 		content, err := os.ReadFile(skillFile)
 		if err != nil {
 			continue
@@ -107,9 +124,32 @@ func discoverSkillsInDir(dir string, pluginName string) []Skill {
 			Content:         body,
 			Frontmatter:     rawFM,
 			ActivationStyle: AssessActivationStyle(fm.Description),
+			Enabled:         enabled,
 		})
 	}
 	return skills
+}
+
+// ToggleSkill renames a skill's file between SKILL.md and SKILL.md.disabled,
+// toggling its visibility to Claude Code. It updates FilePath and Enabled
+// in place.
+func ToggleSkill(skill *Skill) error {
+	if skill.Enabled {
+		newPath := skill.FilePath + ".disabled"
+		if err := os.Rename(skill.FilePath, newPath); err != nil {
+			return fmt.Errorf("disabling skill: %w", err)
+		}
+		skill.FilePath = newPath
+		skill.Enabled = false
+	} else {
+		newPath := strings.TrimSuffix(skill.FilePath, ".disabled")
+		if err := os.Rename(skill.FilePath, newPath); err != nil {
+			return fmt.Errorf("enabling skill: %w", err)
+		}
+		skill.FilePath = newPath
+		skill.Enabled = true
+	}
+	return nil
 }
 
 // LocalSkillsDir pairs a .claude/skills path with a display name.

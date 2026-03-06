@@ -262,3 +262,177 @@ func TestDiscoverLocalSkills_NonexistentDir(t *testing.T) {
 		t.Fatalf("expected 0 skills, got %d", len(skills))
 	}
 }
+
+func TestDiscoverDisabledSkill(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pluginsJSON := `{"version": 2, "plugins": {}}`
+	pluginsFile := filepath.Join(tmpDir, "installed_plugins.json")
+	if err := os.WriteFile(pluginsFile, []byte(pluginsJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	localDir := filepath.Join(tmpDir, "skills")
+	skillDir := filepath.Join(localDir, "disabled-skill")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md.disabled"), []byte(`---
+name: disabled-skill
+description: "A disabled skill."
+---
+
+Disabled content.
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skills, err := Discover(pluginsFile, []LocalSkillsDir{
+		{Path: localDir, Name: "test"},
+	})
+	if err != nil {
+		t.Fatalf("Discover() error: %v", err)
+	}
+	if len(skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(skills))
+	}
+
+	s := skills[0]
+	if s.Enabled {
+		t.Error("expected Enabled=false for SKILL.md.disabled")
+	}
+	if s.Name != "disabled-skill" {
+		t.Errorf("expected name 'disabled-skill', got %q", s.Name)
+	}
+	if !strings.HasSuffix(s.FilePath, "SKILL.md.disabled") {
+		t.Errorf("expected FilePath to end with SKILL.md.disabled, got %q", s.FilePath)
+	}
+}
+
+func TestDiscoverPrefersEnabledWhenBothExist(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pluginsJSON := `{"version": 2, "plugins": {}}`
+	pluginsFile := filepath.Join(tmpDir, "installed_plugins.json")
+	if err := os.WriteFile(pluginsFile, []byte(pluginsJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	localDir := filepath.Join(tmpDir, "skills")
+	skillDir := filepath.Join(localDir, "both-exist")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	content := []byte("---\nname: both-exist\ndescription: \"test\"\n---\nBody.\n")
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md.disabled"), content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skills, err := Discover(pluginsFile, []LocalSkillsDir{
+		{Path: localDir, Name: "test"},
+	})
+	if err != nil {
+		t.Fatalf("Discover() error: %v", err)
+	}
+	if len(skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(skills))
+	}
+	if !skills[0].Enabled {
+		t.Error("expected Enabled=true when both SKILL.md and SKILL.md.disabled exist")
+	}
+	if !strings.HasSuffix(skills[0].FilePath, "SKILL.md") || strings.HasSuffix(skills[0].FilePath, ".disabled") {
+		t.Errorf("expected FilePath to point to SKILL.md, got %q", skills[0].FilePath)
+	}
+}
+
+func TestToggleSkillRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	skillDir := filepath.Join(tmpDir, "my-skill")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	skillFile := filepath.Join(skillDir, "SKILL.md")
+	if err := os.WriteFile(skillFile, []byte("---\nname: my-skill\n---\nBody.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skill := Skill{
+		Name:     "my-skill",
+		FilePath: skillFile,
+		Enabled:  true,
+	}
+
+	// Disable
+	if err := ToggleSkill(&skill); err != nil {
+		t.Fatalf("ToggleSkill (disable) error: %v", err)
+	}
+	if skill.Enabled {
+		t.Error("expected Enabled=false after disable")
+	}
+	if !strings.HasSuffix(skill.FilePath, ".disabled") {
+		t.Errorf("expected .disabled suffix, got %q", skill.FilePath)
+	}
+	if _, err := os.Stat(filepath.Join(skillDir, "SKILL.md.disabled")); err != nil {
+		t.Error("expected SKILL.md.disabled to exist on disk")
+	}
+	if _, err := os.Stat(filepath.Join(skillDir, "SKILL.md")); !os.IsNotExist(err) {
+		t.Error("expected SKILL.md to not exist on disk")
+	}
+
+	// Re-enable
+	if err := ToggleSkill(&skill); err != nil {
+		t.Fatalf("ToggleSkill (enable) error: %v", err)
+	}
+	if !skill.Enabled {
+		t.Error("expected Enabled=true after re-enable")
+	}
+	if strings.HasSuffix(skill.FilePath, ".disabled") {
+		t.Errorf("expected no .disabled suffix, got %q", skill.FilePath)
+	}
+	if _, err := os.Stat(filepath.Join(skillDir, "SKILL.md")); err != nil {
+		t.Error("expected SKILL.md to exist on disk")
+	}
+}
+
+func TestEnabledSkillHasEnabledTrue(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pluginsJSON := `{"version": 2, "plugins": {}}`
+	pluginsFile := filepath.Join(tmpDir, "installed_plugins.json")
+	if err := os.WriteFile(pluginsFile, []byte(pluginsJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	localDir := filepath.Join(tmpDir, "skills")
+	skillDir := filepath.Join(localDir, "enabled-skill")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(`---
+name: enabled-skill
+description: "An enabled skill."
+---
+
+Content.
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skills, err := Discover(pluginsFile, []LocalSkillsDir{
+		{Path: localDir, Name: "test"},
+	})
+	if err != nil {
+		t.Fatalf("Discover() error: %v", err)
+	}
+	if len(skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(skills))
+	}
+	if !skills[0].Enabled {
+		t.Error("expected Enabled=true for SKILL.md")
+	}
+}

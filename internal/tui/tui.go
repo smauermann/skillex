@@ -54,6 +54,7 @@ var (
 	directiveColor = lipgloss.Color("35")  // green  — directive descriptions activate reliably
 	passiveColor   = lipgloss.Color("214") // orange — passive descriptions often ignored
 	neutralColor   = lipgloss.Color("242") // dim    — unclear / no description
+	disabledColor  = lipgloss.Color("238") // very dim — skill is disabled
 
 	// analyticsLabelStyle is the left-column label in the analytics panel.
 	analyticsLabelStyle = lipgloss.NewStyle().
@@ -99,6 +100,13 @@ func (d skillDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 		dStyle = normalDescStyle
 	}
 
+	if !si.skill.Enabled {
+		dimStyle := lipgloss.NewStyle().Foreground(disabledColor)
+		tag := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("disabled")
+		fmt.Fprintf(w, "%s%s\n  %s %s", prefix, dimStyle.Render(si.skill.Name), dimStyle.Render(si.skill.Plugin), tag)
+		return
+	}
+
 	tag := activationTag(si.skill.ActivationStyle)
 	fmt.Fprintf(w, "%s%s\n  %s %s", prefix, tStyle.Render(si.skill.Name), dStyle.Render(si.skill.Plugin), tag)
 }
@@ -129,6 +137,17 @@ func activationAdvice(style discovery.ActivationStyle) string {
 
 // renderAnalyticsPanel builds the inner content of the Skill Analytics panel.
 func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, width int) string {
+	// Status line: enabled/disabled
+	var statusLine string
+	if skill.Enabled {
+		statusLine = analyticsLabelStyle.Render("Status") +
+			lipgloss.NewStyle().Foreground(directiveColor).Render("Enabled")
+	} else {
+		statusLine = analyticsLabelStyle.Render("Status") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("Disabled") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(" -- invisible to Claude")
+	}
+
 	tag := activationTag(skill.ActivationStyle)
 	advice := activationAdvice(skill.ActivationStyle)
 
@@ -144,7 +163,7 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 
 	activationLine := analyticsLabelStyle.Render("Activation") +
 		tag +
-		lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(" — ") +
+		lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(" -- ") +
 		lipgloss.NewStyle().Foreground(adviceColor).Render(advice)
 
 	skillChars := len(skill.Description)
@@ -157,12 +176,13 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 	var contentLegend string
 	if wordCount > contentWordLimit {
 		contentLegend = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(
-			strings.Repeat(" ", 13) + "Verbose — skill is wasting context every conversation")
+			strings.Repeat(" ", 13) + "Verbose -- skill is wasting context every conversation")
 	} else {
 		contentLegend = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(
-			strings.Repeat(" ", 13) + "Concise — no context pollution")
+			strings.Repeat(" ", 13) + "Concise -- no context pollution")
 	}
 
+	// Budget only counts enabled skills (disabled ones won't load in Claude).
 	totalChars := totalDescChars(allSkills)
 	totalPct := float64(totalChars) / float64(descBudgetLimit)
 
@@ -182,16 +202,28 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 	switch {
 	case totalChars >= descBudgetLimit:
 		legend = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(
-			strings.Repeat(" ", 13) + "Exceeded — some skills won't be visible to Claude")
+			strings.Repeat(" ", 13) + "Exceeded -- some skills won't be visible to Claude")
 	case totalChars > descBudgetLimit*8/10:
 		legend = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render(
-			strings.Repeat(" ", 13) + "Tight — adding more skills risks silent exclusion")
+			strings.Repeat(" ", 13) + "Tight -- adding more skills risks silent exclusion")
 	default:
 		legend = dimStyle.Render(
-			strings.Repeat(" ", 13) + "Healthy — all descriptions fit into Claude's context")
+			strings.Repeat(" ", 13) + "Healthy -- all descriptions fit into Claude's context")
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, activationLine, descLine, contentLine, contentLegend, budgetLine, barLine, legend)
+	// Show savings from disabled skills.
+	disabledCount, disabledChars := disabledStats(allSkills)
+	var savingsLine string
+	if disabledCount > 0 {
+		savingsLine = dimStyle.Render(
+			fmt.Sprintf("%s%d disabled skill(s) saving %d chars", strings.Repeat(" ", 13), disabledCount, disabledChars))
+	}
+
+	lines := []string{statusLine, activationLine, descLine, contentLine, contentLegend, budgetLine, barLine, legend}
+	if savingsLine != "" {
+		lines = append(lines, savingsLine)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
 // renderFrontmatter converts raw YAML frontmatter into styled bold key/value markdown lines.
@@ -218,14 +250,28 @@ func renderFrontmatter(raw string) string {
 	return buf.String()
 }
 
-// totalDescChars returns the sum of description lengths across all skills.
-// Claude Code silently stops loading skills when this total exceeds 15,000 chars.
+// totalDescChars returns the sum of description lengths across enabled skills.
+// Claude Code silently stops loading skills when this total exceeds the budget.
+// Disabled skills are excluded because Claude never sees them.
 func totalDescChars(skills []discovery.Skill) int {
 	total := 0
 	for _, s := range skills {
-		total += len(s.Description)
+		if s.Enabled {
+			total += len(s.Description)
+		}
 	}
 	return total
+}
+
+// disabledStats returns the count and total description chars of disabled skills.
+func disabledStats(skills []discovery.Skill) (count int, chars int) {
+	for _, s := range skills {
+		if !s.Enabled {
+			count++
+			chars += len(s.Description)
+		}
+	}
+	return
 }
 
 // progressBar renders a colored bar of filled and empty blocks.
@@ -315,6 +361,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.focusViewport = false
 				return m, nil
 			}
+		case " ":
+			if !m.focusViewport {
+				if si, ok := m.list.SelectedItem().(skillItem); ok {
+					for i := range m.skills {
+						if m.skills[i].FilePath == si.skill.FilePath {
+							if err := discovery.ToggleSkill(&m.skills[i]); err == nil {
+								m.list.SetItem(m.list.Index(), skillItem{skill: m.skills[i]})
+								m = m.updateViewportContent()
+							}
+							break
+						}
+					}
+				}
+				return m, nil
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -329,8 +390,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		listContentWidth := listWidth - 4
 		vpContentWidth := viewportWidth - 4
 
-		// Analytics panel: 8 inner rows + top border(1) + bottom border(1) = 10 total rows
-		analyticsHeight := 10
+		// Analytics panel: 10 inner rows + top border(1) + bottom border(1) = 12 total rows
+		analyticsHeight := 12
 
 		// List panel: full content height minus borders
 		listInnerHeight := contentHeight - 2
@@ -465,7 +526,7 @@ func (m Model) helpBar() string {
 	if m.focusViewport {
 		content = key("j/k") + " scroll  " + key("h") + " back to list  " + key("/") + " filter  " + key("q") + " quit"
 	} else {
-		content = key("j/k") + " navigate  " + key("l") + " read preview  " + key("/") + " filter  " + key("q") + " quit"
+		content = key("j/k") + " navigate  " + key("space") + " toggle  " + key("l") + " read preview  " + key("/") + " filter  " + key("q") + " quit"
 	}
 
 	return helpBarStyle.Width(m.width).Render(content)
@@ -480,8 +541,8 @@ func (m Model) View() string {
 	listWidth := m.width / 3
 	viewportWidth := m.width - listWidth
 
-	// Analytics panel: 8 inner rows
-	analyticsInnerHeight := 8
+	// Analytics panel: 10 inner rows
+	analyticsInnerHeight := 10
 	analyticsHeight := analyticsInnerHeight + 2 // + borders
 
 	// List panel: full content height - borders
