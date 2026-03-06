@@ -68,8 +68,8 @@ func TestRenderAnalyticsPanelDisabledSkill(t *testing.T) {
 	if !strings.Contains(result, "Disabled") {
 		t.Error("expected 'Disabled' status for disabled skill")
 	}
-	if !strings.Contains(result, "invisible to Claude") {
-		t.Error("expected invisible-to-Claude note for disabled skill")
+	if !strings.Contains(result, "start a new session to apply") {
+		t.Error("expected new-session note for disabled skill")
 	}
 }
 

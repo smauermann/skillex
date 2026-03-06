@@ -145,7 +145,7 @@ func renderAnalyticsPanel(skill discovery.Skill, allSkills []discovery.Skill, wi
 	} else {
 		statusLine = analyticsLabelStyle.Render("Status") +
 			lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("Disabled") +
-			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(" -- invisible to Claude")
+			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(" -- start a new session to apply")
 	}
 
 	tag := activationTag(skill.ActivationStyle)
